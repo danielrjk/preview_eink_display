@@ -3,6 +3,7 @@ import json
 from django.http import JsonResponse
 import numpy as np
 import math
+import re
 
 # CONSTANTES
 GxEPD_BLACK = 1
@@ -17,7 +18,9 @@ def process_code(request):
         code = data.get('code', '')
         rotacao = data.get('rotacao', '')
         width, height = (296, 128) if rotacao in [1, 3] else (128, 296)
-        pixels = np.full((height, width), GxEPD_WHITE)  # Matriz preenchida com branco
+        pixels = np.full((height, width), GxEPD_WHITE)  
+        
+        code = convert_c_to_python(code)
 
         try:
             exec_code(code, pixels)
@@ -26,10 +29,21 @@ def process_code(request):
             print(str(e))
             return JsonResponse({'error': str(e)}, status=400)
 
+def convert_c_to_python(code):
+    code = re.sub(
+        r'for\s*\(\s*int\s+(\w+)\s*=\s*(\d+);\s*\1\s*<\s*(\d+);\s*\1\+\+\s*\)\s*\{',
+        r'for \1 in range(\2, \3):',
+        code
+    )
+    code = code.replace('}', '')  # Remove chaves de fechamento
+    code = re.sub(r';\s*$', '', code, flags=re.MULTILINE)
+    return code
+
 def exec_code(code, pixels):
     exec(
         code,
         {
+            'fillScreen': lambda color: fill_screen(color, pixels),
             'drawLine': lambda x1, y1, x2, y2, color: draw_line(x1, y1, x2, y2, color, pixels),
             'fillCircle': lambda x, y, r, color: fill_circle(x, y, r, color, pixels),
             'drawCircle': lambda x, y, r, color: draw_circle(x, y, r, color, pixels),
@@ -40,16 +54,20 @@ def exec_code(code, pixels):
             'pixels': pixels,
             'GxEPD_BLACK': GxEPD_BLACK,
             'GxEPD_WHITE': GxEPD_WHITE,
+            'range': range
         },
     )
+    
 
 def draw_fast_vline(x, y, h, color, pixels):
     draw_line(x, y, x, y+h-1, color, pixels)
     
 def draw_fast_hline(x, y, w, color, pixels):
     draw_line(x, y, x+w-1, y, color, pixels)
-    
 
+def fill_screen(color, pixels):
+    pixels.fill(color)      
+    
 def draw_line(x0, y0, x1, y1, color, pixels):
     steep = abs(y1 - y0) > abs(x1 - x0)
     
