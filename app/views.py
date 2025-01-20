@@ -15,7 +15,8 @@ def process_code(request):
     if request.method == 'POST':
         data = json.loads(request.body)
         code = data.get('code', '')
-        width, height = 296, 128
+        rotacao = data.get('rotacao', '')
+        width, height = (296, 128) if rotacao in [1, 3] else (128, 296)
         pixels = np.full((height, width), GxEPD_WHITE)  # Matriz preenchida com branco
 
         try:
@@ -42,80 +43,188 @@ def exec_code(code, pixels):
         },
     )
 
-def draw_line(x1, y1, x2, y2, color, pixels):
-    dx = abs(x2 - x1)
-    dy = abs(y2 - y1)
-    sx = 1 if x1 < x2 else -1
-    sy = 1 if y1 < y2 else -1
-    err = dx - dy
+def draw_fast_vline(x, y, h, color, pixels):
+    draw_line(x, y, x, y+h-1, color, pixels)
+    
+def draw_fast_hline(x, y, w, color, pixels):
+    draw_line(x, y, x+w-1, y, color, pixels)
+    
 
-    while True:
-        if 0 <= y1 < pixels.shape[0] and 0 <= x1 < pixels.shape[1]:
-            pixels[y1][x1] = color
+def draw_line(x0, y0, x1, y1, color, pixels):
+    steep = abs(y1 - y0) > abs(x1 - x0)
+    
+    if steep:
+        x0, y0 = y0, x0
+        x1, y1 = y1, x1
         
-        if x1 == x2 and y1 == y2:
-            break
-
-        e2 = 2 * err
-        if e2 > -dy:
-            err -= dy
-            x1 += sx
-        if e2 < dx:
+    if x0 > x1:
+        x0, x1 = x1, x0
+        y0, y1 = y1, y0
+        
+    dx = x1 - x0
+    dy = abs(y1 - y0)
+    
+    err = dx/2
+    
+    if y0 < y1:
+        ysteep = 1
+    else:
+        ysteep = -1
+        
+    while x0 <= x1:
+        if steep:
+            pixels[x0][y0] = color
+        else:
+            pixels[y0][x0] = color
+        err-=dy
+        if err < 0:
+            y0 += ysteep
             err += dx
-            y1 += sy
+        x0+=1
+        
+    
 
-def fill_circle(x, y, r, color, pixels):
-    for i in range(x - r, x + r + 1):
-        for j in range(y - r, y + r + 1):
-            if 0 <= j < pixels.shape[0] and 0 <= i < pixels.shape[1]:
-                if (i - x) ** 2 + (j - y) ** 2 <= r ** 2:
-                    pixels[j][i] = color
+def fill_circle(x0, y0, r, color, pixels):
+    draw_fast_vline(x0, y0-r, 2*r+1, color, pixels)
+    
+    f = 1-r
+    ddF_x = 1
+    ddF_y = -2*r
+    x = 0
+    y = r
+    px = x
+    py = y
+    
+    delta = 1
+    corners = 3
+    
+    while x < y:
+        if f >= 0:
+            y-=1
+            ddF_y += 2
+            f += ddF_y
+            
+        x+=1
+        ddF_x += 2
+        f += ddF_x
+        
+        if x < (y+1):
+            if corners & 1:
+                draw_fast_vline(x0 + x, y0 - y, 2 * y + delta, color, pixels)
+            if corners & 2:
+                draw_fast_vline(x0 - x, y0 - y, 2 * y + delta, color, pixels)
+                
+        if y!=py:
+            if corners & 1:
+                draw_fast_vline(x0 + py, y0 - px, 2 * px + delta, color, pixels)
+            if corners & 2:
+                draw_fast_vline(x0 - py, y0 - px, 2 * px + delta, color, pixels)
+            py=y
+        px = x            
+                
 
-def draw_circle(x, y, r, color, pixels):
-    for i in range(x - r, x + r + 1):
-        for j in range(y - r, y + r + 1):
-            if 0 <= j < pixels.shape[0] and 0 <= i < pixels.shape[1]:
-                if r - 1 <= math.sqrt((i - x) ** 2 + (j - y) ** 2) <= r + 1:
-                    pixels[j][i] = color
+def draw_circle(x0, y0, r, color, pixels):
+    f = 1-r
+    ddF_x = 1
+    ddF_y = -2*r
+    x = 0
+    y = r
+    
+    pixels[y0+r][x0] = color
+    pixels[y0-r][x0] = color
+    pixels[y0][x0+r] = color
+    pixels[y0][x0-r] = color
+    
+    while x < y:
+        if f >= 0:
+            y-=1
+            ddF_y += 2
+            f += ddF_y
+        
+        x+=1
+        ddF_x += 2
+        f += ddF_x
+        
+        pixels[y0 + y][x0 + x] = color
+        pixels[y0 + y][x0 - x] = color
+        pixels[y0 - y][x0 + x] = color
+        pixels[y0 - y][x0 - x] = color
+        pixels[y0 + x][x0 + y] = color
+        pixels[y0 + x][x0 - y] = color
+        pixels[y0 - x][x0 + y] = color
+        pixels[y0 - x][x0 - y] = color
+    
 
-def fill_rect(x, y, width, height, color, pixels):
-    for i in range(x, x + width):
-        for j in range(y, y + height):
-            if 0 <= j < pixels.shape[0] and 0 <= i < pixels.shape[1]:
-                pixels[j][i] = color
+def fill_rect(x, y, w, h, color, pixels):
+    for i in range(x, x+w):
+        draw_fast_vline(i, y, h, color, pixels)
 
-def draw_rect(x, y, width, height, color, pixels):
-    draw_line(x, y, x + width, y, color, pixels) 
-    draw_line(x, y, x, y + height, color, pixels)  
-    draw_line(x + width, y, x + width, y + height, color, pixels)  
-    draw_line(x, y + height, x + width, y + height, color, pixels)  
+def draw_rect(x, y, w, h, color, pixels):
+    draw_fast_hline(x, y, w, color, pixels)  
+    draw_fast_hline(x, y + h - 1, w, color, pixels) 
+    draw_fast_vline(x, y, h, color, pixels) 
+    draw_fast_vline(x + w - 1, y, h, color, pixels) 
 
-def fill_triangle(x1, y1, x2, y2, x3, y3, color, pixels):
-    def edge_interpolate(y, x1, y1, x2, y2):
-        if y1 == y2:
-            return x1
-        return x1 + (x2 - x1) * (y - y1) / (y2 - y1)
+def fill_triangle(x0, y0, x1, y1, x2, y2, color, pixels):
+    if y0 > y1:
+        y0, y1 = y1, y0
+        x0, x1 = x1, x0
+    if y1 > y2:
+        y1, y2 = y2, y1
+        x1, x2 = x2, x1
+    if y0 > y1:
+        y0, y1 = y1, y0
+        x0, x1 = x1, x0
+        
+    if y0 == y2:
+        a = b = x0
+        if x1 < a:
+            a = x1
+        elif x1 > b:
+            b = x1
+        if x2 < a:
+            a = x2
+        elif x2 > b:
+            b = x2
+        draw_fast_hline(a, y0, b - a + 1, color, pixels)
+        return
+    
+    dx01 = x1 - x0
+    dy01 = y1 - y0
+    dx02 = x2 - x0
+    dy02 = y2 - y0
+    dx12 = x2 - x1
+    dy12 = y2 - y1
+    sa = 0
+    sb = 0
+    
+    if y1 == y2:
+        last = y1
+    else:
+        last = y1 - 1
+        
+    for y in range(y0, last+1):
+        a = x0 + sa // dy01
+        b = x0 + sb // dy02
+        sa += dx01
+        sb += dx02
+        if a > b:
+            a, b = b, a
+        draw_fast_hline(a, y, b - a + 1, color, pixels)
+        
+    y = last
+    sa = int(dx12) * (y - y1)
+    sb = int(dx02) * (y - y0)
+    for y in range(y1, y2+1):
+        a = x1 + sa // dy12
+        b = x0 + sb // dy02
+        sa += dx12
+        sb += dx02
+        if a > b:
+            a, b = b, a
+        draw_fast_hline(a, y, b - a + 1, color, pixels)
 
-    ymin = min(y1, y2, y3)
-    ymax = max(y1, y2, y3)
-
-    for y in range(ymin, ymax + 1):
-        x_left = min(
-            edge_interpolate(y, x1, y1, x2, y2),
-            edge_interpolate(y, x1, y1, x3, y3),
-            edge_interpolate(y, x2, y2, x3, y3),
-        )
-        x_right = max(
-            edge_interpolate(y, x1, y1, x2, y2),
-            edge_interpolate(y, x1, y1, x3, y3),
-            edge_interpolate(y, x2, y2, x3, y3),
-        )
-
-        for x in range(math.floor(x_left), math.ceil(x_right) + 1):
-            if 0 <= y < pixels.shape[0] and 0 <= x < pixels.shape[1]:
-                pixels[y][x] = color
-
-def draw_triangle(x1, y1, x2, y2, x3, y3, color, pixels):
+def draw_triangle(x0, y0, x1, y1, x2, y2, color, pixels):
+    draw_line(x0, y0, x1, y1, color, pixels)
     draw_line(x1, y1, x2, y2, color, pixels)
-    draw_line(x2, y2, x3, y3, color, pixels)
-    draw_line(x3, y3, x1, y1, color, pixels)
+    draw_line(x2, y2, x0, y0, color, pixels)

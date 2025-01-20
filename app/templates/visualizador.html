@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,19 +11,22 @@
         html {
             height: 100%;
         }
+
         body {
             display: flex;
             flex-direction: row;
             margin: 0;
             height: 100%;
         }
+
         #editor-container {
             display: flex;
             flex-direction: column;
             flex: 1;
-            border: 1px solid #ccc;
+            border: 1px solid #310029;
             height: 100vh;
         }
+
         #preview {
             flex: 1;
             display: flex;
@@ -31,6 +35,7 @@
             border: 1px solid #ccc;
             position: relative;
         }
+
         #zoom-controls {
             position: absolute;
             top: 10px;
@@ -38,20 +43,37 @@
             display: flex;
             justify-content: center;
             align-items: center;
+            gap: 10px;
         }
+
         #zoom-slider {
             margin-left: 10px;
             width: 50%;
         }
+
         #editor {
             flex: 1;
-            height: calc(100% - 50px);;
+            height: calc(100% - 50px);
+            ;
         }
+
         canvas {
             display: block;
             background: white;
             border: 4px solid #333;
         }
+
+        #coordinates {
+            margin-top: 10px;
+            text-align: center;
+            position: absolute;
+            top: 25px;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
         button {
             padding: 10px;
             background-color: #007BFF;
@@ -60,22 +82,29 @@
             cursor: pointer;
             text-align: center;
         }
+
         button:hover {
             background-color: #0056b3;
         }
-        .CodeMirror { height: 100%; }
+
+        .CodeMirror {
+            height: 100%;
+        }
     </style>
 </head>
+
 <body>
     <div id="editor-container">
-        <button onclick="sendCode()">Rodar</button>
+        <button onclick="sendCode()">Rodar (Ctrl + Enter)</button>
         <div id="editor"></div>
     </div>
     <div id="preview">
         <div id="zoom-controls">
+            <button id="rotate-button" onclick="rotateCanvas()">Rotação: 1</button>
             <label for="zoom-slider">Zoom:</label>
-            <input id="zoom-slider" type="range" min="1" max="2" step="0.1" value="1" onchange="updateZoom()">
+            <input id="zoom-slider" type="range" min="10" max="20" step="0.1" value="1" oninput="updateZoom()">
         </div>
+        <div id="coordinates">x: 0, y: 0</div>
         <canvas id="displayCanvas" width="296" height="128"></canvas>
     </div>
 
@@ -90,6 +119,8 @@
         const ctx = canvas.getContext('2d');
         const zoomSlider = document.getElementById('zoom-slider');
 
+        let rotationState = 1;
+
         async function sendCode() {
             const code = editor.getValue();
             try {
@@ -98,7 +129,7 @@
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ code }),
+                    body: JSON.stringify({ "code": code, "rotacao": rotationState }),
                 });
                 const data = await response.json();
                 renderCanvas(data.pixels);
@@ -118,9 +149,51 @@
         }
 
         function updateZoom() {
-            const scale = parseFloat(zoomSlider.value);
+            var scale = parseFloat(zoomSlider.value);
+            scale = scale / 10;
             canvas.style.transform = `scale(${scale})`;
+            canvas.dataset.scale = scale;
         }
+
+        canvas.addEventListener('click', (event) => {
+            const coordinatesBox = document.getElementById('coordinates');
+            const canvasBorderWidth = 4;
+            const rect = canvas.getBoundingClientRect();
+            const scale = parseFloat(canvas.dataset.scale || 1);
+            const x = Math.floor((event.clientX - rect.left - canvasBorderWidth) / scale);
+            const y = Math.floor((event.clientY - rect.top - canvasBorderWidth) / scale);
+            coordinatesBox.textContent = `x: ${x}, y: ${y}`;
+        });
+
+        function rotateCanvas() {
+            rotationState = (rotationState + 1) % 4; // Alterna entre 0, 1, 2, 3
+            const rotateButton = document.getElementById('rotate-button');
+            rotateButton.textContent = `Rotação: ${rotationState}`;
+
+            if (rotationState === 0 || rotationState === 2) {
+                // Vertical
+                canvas.width = 128;
+                canvas.height = 296;
+            } else {
+                // Horizontal
+                canvas.width = 296;
+                canvas.height = 128;
+            }
+
+            // Reaplica o zoom para manter a escala após a rotação
+            updateZoom();
+
+            // Limpa o canvas e exibe as alterações
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            coordinatesBox.textContent = `x: 0, y: 0`; // Reseta coordenadas
+        }
+
+        document.addEventListener('keydown', (event) => {
+            if (event.ctrlKey && event.key === 'Enter') {
+                sendCode(); // Chama a função sendCode() quando Ctrl+Enter é pressionado
+            }
+        });
     </script>
 </body>
+
 </html>
