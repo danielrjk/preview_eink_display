@@ -4,6 +4,8 @@ from django.http import JsonResponse
 import numpy as np
 import math
 import re
+from bdfparser import Font
+import os
 
 # CONSTANTES
 GxEPD_BLACK = 1
@@ -30,34 +32,134 @@ def process_code(request):
             return JsonResponse({'error': str(e)}, status=400)
 
 def convert_c_to_python(code):
+    
     code = re.sub(
         r'for\s*\(\s*int\s+(\w+)\s*=\s*(\d+);\s*\1\s*<\s*(\d+);\s*\1\+\+\s*\)\s*\{',
         r'for \1 in range(\2, \3):',
         code
     )
+    
+    code = re.sub(
+        r'(fontes\.setFont\()\s*(\w+)\s*(\);)',
+        r'\1"\2"\3',
+        code
+    )
+    
+    code = re.sub(
+        r'(fontes\.drawGlyph\()\s*(\w+)\s*(,.*\);)', 
+        r'\1"\2"\3', 
+        code
+    )
+    
+    
+    # ULTIMOS
     code = code.replace('}', '')  # Remove chaves de fechamento
     code = re.sub(r';\s*$', '', code, flags=re.MULTILINE)
+    
     return code
 
 def exec_code(code, pixels):
+    tela = Tela(pixels)
+    fontes = Fontes(tela)
     exec(
         code,
         {
-            'fillScreen': lambda color: fill_screen(color, pixels),
-            'drawLine': lambda x1, y1, x2, y2, color: draw_line(x1, y1, x2, y2, color, pixels),
-            'fillCircle': lambda x, y, r, color: fill_circle(x, y, r, color, pixels),
-            'drawCircle': lambda x, y, r, color: draw_circle(x, y, r, color, pixels),
-            'fillRect': lambda x, y, width, height, color: fill_rect(x, y, width, height, color, pixels),
-            'drawRect': lambda x, y, width, height, color: draw_rect(x, y, width, height, color, pixels),
-            'fillTriangle': lambda x1, y1, x2, y2, x3, y3, color: fill_triangle(x1, y1, x2, y2, x3, y3, color, pixels),
-            'drawTriangle': lambda x1, y1, x2, y2, x3, y3, color: draw_triangle(x1, y1, x2, y2, x3, y3, color, pixels),
+            'tela': tela,
+            'fontes': fontes,
             'pixels': pixels,
             'GxEPD_BLACK': GxEPD_BLACK,
             'GxEPD_WHITE': GxEPD_WHITE,
-            'range': range
+            'range': range,
         },
     )
     
+class Tela:
+    def __init__(self, pixels):
+        self.pixels = pixels
+
+    def fillScreen(self, color):
+        fill_screen(color, self.pixels)
+
+    def drawLine(self, x1, y1, x2, y2, color):
+        draw_line(x1, y1, x2, y2, color, self.pixels)
+
+    def fillCircle(self, x, y, r, color):
+        fill_circle(x, y, r, color, self.pixels)
+
+    def drawCircle(self, x, y, r, color):
+        draw_circle(x, y, r, color, self.pixels)
+
+    def fillRect(self, x, y, width, height, color):
+        fill_rect(x, y, width, height, color, self.pixels)
+
+    def drawRect(self, x, y, width, height, color):
+        draw_rect(x, y, width, height, color, self.pixels)
+
+    def fillTriangle(self, x1, y1, x2, y2, x3, y3, color):
+        fill_triangle(x1, y1, x2, y2, x3, y3, color, self.pixels)
+
+    def drawTriangle(self, x1, y1, x2, y2, x3, y3, color):
+        draw_triangle(x1, y1, x2, y2, x3, y3, color, self.pixels)
+        
+class Fontes:
+    def __init__(self, tela):
+        self.font = None
+        self.cursor = (0, 0)
+        self.tela = tela
+
+    def setFont(self, font_name):
+        font_name = "_".join(font_name.split("_")[2:-1])
+        
+        base_dir = os.path.dirname(os.path.abspath(__file__))  
+        caminho_font = os.path.join(base_dir, "src", "olikraus_u8g2_master_tools-font_bdf", f"{font_name}.bdf")
+        font = font = Font(caminho_font)
+        max_width = 0
+        max_height = 0
+        for glyph_name, glyph in font.glyphs.items():
+            bbx, bby, = glyph[2:4]
+            max_width = max(max_width, bbx)
+            max_height = max(max_height, bby)
+        font.headers['fbbx'] = max_width
+        font.headers['fbby'] = max_height
+        self.font = font
+
+    def setCursor(self, x, y):
+        self.cursor = (x, y)
+
+    def print(self, text):
+        font = self.font
+        texto = font.draw(text, direction='lr')
+        nparr = np.array(texto.todata(2))
+        pixels = self.tela.pixels
+        x, y = self.cursor
+        x, y = y, x
+        for i, linha in enumerate(nparr):
+            for j, celula in enumerate(linha):
+                if 0 <= x + i < len(pixels) and 0 <= y + j < len(pixels[0]):
+                    pixels[x+i][y+j] = any([celula, pixels[x+i][y+j]])
+                
+        self.tela.pixels = pixels
+        
+    def drawGlyph(self, font_name, x, y, encoding):
+        fonteAtual = self.font
+        self.setFont(font_name)
+        font = self.font
+        pixels = self.tela.pixels
+        x, y = y, x
+        str_icon = chr(encoding)
+        texto = font.draw(str_icon, direction='lr')
+        nparr = np.array(texto.todata(2))
+        for i, linha in enumerate(nparr):
+            for j, celula in enumerate(linha):
+                if 0 <= x + i < len(pixels) and 0 <= y + j < len(pixels[0]):
+                    pixels[x+i][y+j] = any([celula, pixels[x+i][y+j]])
+                    
+        self.tela.pixels = pixels
+        self.font = fonteAtual
+        
+        
+        
+
 
 def draw_fast_vline(x, y, h, color, pixels):
     draw_line(x, y, x, y+h-1, color, pixels)
@@ -91,9 +193,11 @@ def draw_line(x0, y0, x1, y1, color, pixels):
         
     while x0 <= x1:
         if steep:
-            pixels[x0][y0] = color
+            if all([0<=x0<=len(pixels),0<=y0<=len(pixels[0])]):
+                pixels[x0][y0] = color
         else:
-            pixels[y0][x0] = color
+            if all([0<=x0<=len(pixels),0<=y0<=len(pixels[0])]):
+                pixels[y0][x0] = color
         err-=dy
         if err < 0:
             y0 += ysteep
