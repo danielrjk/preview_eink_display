@@ -112,7 +112,7 @@
         const editor = CodeMirror(document.getElementById('editor'), {
             mode: "text/x-c++src",
             lineNumbers: true,
-            value: `fillRect(100, 50, 96, 28, GxEPD_BLACK);\nfillCircle(150, 60, 10, GxEPD_WHITE);`,
+            value: `tela.fillRect(100, 50, 96, 28, GxEPD_BLACK);\ntela.fillCircle(150, 60, 10, GxEPD_WHITE);`,
         });
 
         const canvas = document.getElementById('displayCanvas');
