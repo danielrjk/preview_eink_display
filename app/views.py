@@ -106,13 +106,16 @@ class Fontes:
         self.font = None
         self.cursor = (0, 0)
         self.tela = tela
+        self.size = 0
 
     def setFont(self, font_name):
         font_name = "_".join(font_name.split("_")[2:-1])
+
+        self.size = int(re.sub("\D", "", font_name))
         
         base_dir = os.path.dirname(os.path.abspath(__file__))  
         caminho_font = os.path.join(base_dir, "src", "olikraus_u8g2_master_tools-font_bdf", f"{font_name}.bdf")
-        font = font = Font(caminho_font)
+        font = Font(caminho_font)
         max_width = 0
         max_height = 0
         for glyph_name, glyph in font.glyphs.items():
@@ -133,6 +136,7 @@ class Fontes:
         pixels = self.tela.pixels
         x, y = self.cursor
         x, y = y, x
+        x-=self.size
         for i, linha in enumerate(nparr):
             for j, celula in enumerate(linha):
                 if 0 <= x + i < len(pixels) and 0 <= y + j < len(pixels[0]):
@@ -184,7 +188,7 @@ def draw_line(x0, y0, x1, y1, color, pixels):
     dx = x1 - x0
     dy = abs(y1 - y0)
     
-    err = dx/2
+    err = dx//2
     
     if y0 < y1:
         ysteep = 1
@@ -196,7 +200,7 @@ def draw_line(x0, y0, x1, y1, color, pixels):
             if all([0<=x0<=len(pixels),0<=y0<=len(pixels[0])]):
                 pixels[x0][y0] = color
         else:
-            if all([0<=x0<=len(pixels),0<=y0<=len(pixels[0])]):
+            if all([0<=y0<=len(pixels),0<=x0<=len(pixels[0])]):
                 pixels[y0][x0] = color
         err-=dy
         if err < 0:
