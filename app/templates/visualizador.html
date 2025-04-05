@@ -4,9 +4,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Visualizador de Display</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
+    <title>Visualizador de Display E-Ink</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/monokai.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/clike/clike.min.js"></script>
+
     <style>
         html {
             height: 100%;
@@ -95,7 +100,7 @@
 
 <body>
     <div id="editor-container">
-        <button onclick="sendCode()">Rodar (Ctrl + Enter)</button>
+        <button onclick="sendCode()">Rodar</button>
         <div id="editor"></div>
     </div>
     <div id="preview">
@@ -110,7 +115,7 @@
 
     <script>
         const editor = CodeMirror(document.getElementById('editor'), {
-            mode: "text/x-c++src",
+            mode: "text/x-arduino",
             lineNumbers: true,
             value: `tela.fillRect(100, 50, 96, 28, GxEPD_BLACK);\ntela.fillCircle(150, 60, 10, GxEPD_WHITE);`,
         });
