@@ -136,7 +136,7 @@
             });
             const code = editor.getValue();
             try {
-                const response = await fetch('/process-code', {
+                const response = await fetch('process-code', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
