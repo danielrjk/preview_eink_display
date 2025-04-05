@@ -95,6 +95,10 @@
         .CodeMirror {
             height: 100%;
         }
+
+        .error-line {
+            background-color: #ffcccc !important;
+        }
     </style>
 </head>
 
@@ -137,10 +141,30 @@
                     body: JSON.stringify({ "code": code, "rotacao": rotationState }),
                 });
                 const data = await response.json();
-                renderCanvas(data.pixels);
+                if (!response.ok) {
+                    displayErrorMessage(data.error, 2);
+                } else {
+                    editor.eachLine(line => {
+                        editor.removeLineClass(line, 'background', 'error-line');
+                    });
+                    renderCanvas(data.pixels);
+                }
             } catch (error) {
                 console.error("Erro ao enviar código:", error);
+                displayErrorMessage("Erro de conexão ou servidor indisponível.", 2);
             }
+        }
+
+        function displayErrorMessage(message, line) {
+            if (line != 0){
+                lineNumber = parseInt(line) - 1; 
+                editor.eachLine(line => {
+                    editor.removeLineClass(line, 'background', 'error-line');
+                });
+                editor.addLineClass(lineNumber, 'background', 'error-line');
+            }
+            
+            alert(message);
         }
 
         function renderCanvas(pixels) {

@@ -12,6 +12,8 @@ class Fontes:
 
     def setFont(self, font_name):
         # Example: "u8g2_font_ncenB14_tr" => "ncenB14"
+        if len(font_name.split("_")) != 4:
+            raise Exception("Nome de Fonte incompleta")
         font_name = "_".join(font_name.split("_")[2:-1])
         self.size = int(re.sub(r"\D", "", font_name))
 
@@ -24,7 +26,10 @@ class Fontes:
             "olikraus_u8g2_master_tools-font_bdf", 
             f"{font_name}.bdf"
         )
-        font = Font(caminho_font)
+        try:
+            font = Font(caminho_font)
+        except:
+            raise Exception("Fonte não implementada")
 
         # Adjust font bounding box
         max_width = 0
