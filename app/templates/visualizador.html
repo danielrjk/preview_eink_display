@@ -131,9 +131,6 @@
         let rotationState = 1;
 
         async function sendCode() {
-            editor.eachLine(line => {
-                editor.removeLineClass(line, 'background', 'error-line');
-            });
             const code = editor.getValue();
             try {
                 const response = await fetch('process-code', {
