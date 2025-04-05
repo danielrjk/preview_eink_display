@@ -131,6 +131,9 @@
         let rotationState = 1;
 
         async function sendCode() {
+            editor.eachLine(line => {
+                editor.removeLineClass(line, 'background', 'error-line');
+            });
             const code = editor.getValue();
             try {
                 const response = await fetch('/process-code', {
@@ -142,7 +145,7 @@
                 });
                 const data = await response.json();
                 if (!response.ok) {
-                    displayErrorMessage(data.error, 2);
+                    displayErrorMessage(data.error, data.line);
                 } else {
                     editor.eachLine(line => {
                         editor.removeLineClass(line, 'background', 'error-line');
@@ -151,7 +154,7 @@
                 }
             } catch (error) {
                 console.error("Erro ao enviar código:", error);
-                displayErrorMessage("Erro de conexão ou servidor indisponível.", 2);
+                displayErrorMessage("Erro de conexão ou servidor indisponível.", 0);
             }
         }
 
