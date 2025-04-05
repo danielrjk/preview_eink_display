@@ -75,7 +75,7 @@ def exec_code(code, pixels):
     try:
         compiled_code = compile(code, '<user-code>', 'exec')
         exec(
-            code,
+            compiled_code,
             {
                 'tela': tela,
                 'fontes': fontes,
@@ -96,7 +96,7 @@ def exec_code(code, pixels):
         tb = traceback.extract_tb(e.__traceback__)
         error_line = None
         for frame in tb:
-            if frame.filename == '<code>':
+            if frame.filename == '<user-code>':
                 error_line = frame.lineno
                 break
         if error_line is None:
