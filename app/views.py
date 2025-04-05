@@ -1,6 +1,6 @@
 from django.shortcuts import render
 import json
-from django.http import JsonResponse
+from django.http import JsonResponse, Http404
 import numpy as np
 import math
 import re
@@ -38,6 +38,8 @@ def process_code(request):
             else:
                 line_num = 0
             return JsonResponse({'error': d[0], 'line': line_num}, status=400)
+    else:
+        return Http404
 
 def convert_c_to_python(code):
     
