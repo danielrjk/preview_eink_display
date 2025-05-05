@@ -2,6 +2,9 @@ class Tela:
     def __init__(self, pixels):
         self.pixels = pixels
 
+
+    def display(*args):
+        pass
     # Public drawing methods
     def fillScreen(self, color):
         self._fill_screen(color)

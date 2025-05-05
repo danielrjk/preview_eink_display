@@ -10,10 +10,13 @@ class Fontes:
         self.tela = tela
         self.size = 0
 
+    def setFontMode(*args):
+        pass
+
     def setFont(self, font_name):
         # Example: "u8g2_font_ncenB14_tr" => "ncenB14"
-        if len(font_name.split("_")) != 4:
-            raise Exception("Nome de Fonte incompleta")
+        #if len(font_name.split("_")) != 4:
+            #raise Exception("Nome de Fonte incompleta")
         font_name = "_".join(font_name.split("_")[2:-1])
         self.size = int(re.sub(r"\D", "", font_name))
 
@@ -62,10 +65,10 @@ class Fontes:
                     pixels[x + i][y + j] = any([celula, pixels[x + i][y + j]])
         self.tela.pixels = pixels
 
-    def drawGlyph(self, font_name, x, y, encoding):
+    def drawGlyph(self, x, y, encoding):
         # Save the old font
-        fonteAnterior = self.font
-        self.setFont(font_name)
+        # fonteAnterior = self.font
+        # self.setFont(font_name)
         font = self.font
         pixels = self.tela.pixels
         x, y = y, x
