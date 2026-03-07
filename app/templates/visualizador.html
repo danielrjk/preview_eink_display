@@ -133,7 +133,7 @@
         async function sendCode() {
             const code = editor.getValue();
             try {
-                const response = await fetch('process-code', {
+                const response = await fetch('eink_visualizer/process-code', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

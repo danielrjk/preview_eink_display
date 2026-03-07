@@ -18,7 +18,7 @@ class Fontes:
         #if len(font_name.split("_")) != 4:
             #raise Exception("Nome de Fonte incompleta")
         font_name = "_".join(font_name.split("_")[2:-1])
-        self.size = int(re.sub(r"\D", "", font_name))
+        #self.size = int(re.sub(r"\D", "", font_name))
 
         # Build path to your BDF font
         base_dir = os.path.dirname(os.path.abspath(__file__))  
@@ -43,7 +43,8 @@ class Fontes:
             max_height = max(max_height, bby)
         font.headers['fbbx'] = max_width
         font.headers['fbby'] = max_height
-
+        
+        self.size = font.headers["pointsize"]
         self.font = font
 
     def setCursor(self, x, y):
@@ -71,7 +72,8 @@ class Fontes:
         # self.setFont(font_name)
         font = self.font
         pixels = self.tela.pixels
-        x, y = y, x
+        x, y = int(y), int(x)
+        x -= self.size
         str_icon = chr(encoding)
         texto = font.draw(str_icon, direction='lr')
         nparr = np.array(texto.todata(2))
@@ -81,4 +83,4 @@ class Fontes:
                     pixels[x + i][y + j] = any([celula, pixels[x + i][y + j]])
         self.tela.pixels = pixels
         # Restore old font
-        self.font = fonteAnterior
+        # self.font = fonteAnterior

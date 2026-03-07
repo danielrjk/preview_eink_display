@@ -9,7 +9,7 @@ import os
 import traceback
 
 # CLASSES CUSTOMIZADAS
-from .classes import Tela, Fontes, BarCode, BarcodeType
+from .classes import Tela, Fontes, BarCode, BarcodeType, QRCode
 
 # CONSTANTES
 GxEPD_BLACK = 1
@@ -65,6 +65,13 @@ def convert_c_to_python(code):
     # ULTIMOS
     code = code.replace('}', '')  # Remove chaves de fechamento
     code = re.sub(r';\s*$', '', code, flags=re.MULTILINE)
+
+    aux_c = ""
+    for linha in code.split("\n"):
+        aux_c+=linha.strip()+"\n"
+
+    code = aux_c.strip()
+
     
     return code
 
@@ -72,6 +79,7 @@ def exec_code(code, pixels):
     tela = Tela(pixels)
     fontes = Fontes(tela)
     barcode = BarCode(tela)
+    qrcode = QRCode(tela)
     try:
         compiled_code = compile(code, '<user-code>', 'exec')
         exec(
@@ -80,6 +88,8 @@ def exec_code(code, pixels):
                 'tela': tela,
                 'fontes': fontes,
                 'barcode': barcode,
+                'codigoBarras': barcode,
+                'qrcode': qrcode,
                 'pixels': pixels,
                 'GxEPD_BLACK': GxEPD_BLACK,
                 'GxEPD_WHITE': GxEPD_WHITE,
