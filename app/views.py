@@ -64,6 +64,8 @@ def convert_c_to_python(code):
     
     # ULTIMOS
     code = code.replace('}', '')  # Remove chaves de fechamento
+    code = code.replace('true', 'True')
+    code = code.replace('false', 'False')
     code = re.sub(r';\s*$', '', code, flags=re.MULTILINE)
 
     aux_c = ""
