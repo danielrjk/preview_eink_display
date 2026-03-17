@@ -121,7 +121,17 @@
         const editor = CodeMirror(document.getElementById('editor'), {
             mode: "text/x-arduino",
             lineNumbers: true,
-            value: `tela.fillRect(100, 50, 96, 28, GxEPD_BLACK);\ntela.fillCircle(150, 60, 10, GxEPD_WHITE);`,
+            value:
+`fontes.setFont( u8g2_font_helvB12_te );
+fontes.setFontMode(1);
+fontes.setCursor(50, 30);
+fontes.print("Meu texto");
+
+tela.fillRect(100, 50, 96, 28, GxEPD_BLACK);
+tela.fillCircle(150, 63, 10, GxEPD_WHITE);
+
+tela.drawLine(20, 110, 180, 110, GxEPD_BLACK);
+`
         });
 
         const canvas = document.getElementById('displayCanvas');
