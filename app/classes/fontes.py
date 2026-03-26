@@ -34,6 +34,8 @@ class Fontes:
         except:
             raise Exception("Fonte não implementada")
 
+        self.fbbxoff = font.headers['fbbxoff']
+
         # Adjust font bounding box
         max_width = 0
         max_height = 0
@@ -43,7 +45,9 @@ class Fontes:
             max_height = max(max_height, bby)
         font.headers['fbbx'] = max_width
         font.headers['fbby'] = max_height
-        
+
+        # Baseline offset from top of bitmap (after bounding box adjustment)
+        self.baseline_offset = font.headers['fbby'] + font.headers['fbbyoff'] - 1
         self.size = font.headers["pointsize"]
         self.font = font
 
@@ -58,7 +62,8 @@ class Fontes:
         x, y = self.cursor
         # In your original code you swapped x,y => just replicate that logic
         x, y = y, x
-        x -= self.size
+        x -= self.baseline_offset
+        y += self.fbbxoff
         for i, linha in enumerate(nparr):
             for j, celula in enumerate(linha):
                 if 0 <= x + i < len(pixels) and 0 <= y + j < len(pixels[0]):
@@ -73,7 +78,8 @@ class Fontes:
         font = self.font
         pixels = self.tela.pixels
         x, y = int(y), int(x)
-        x -= self.size
+        x -= self.baseline_offset
+        y += self.fbbxoff
         str_icon = chr(encoding)
         texto = font.draw(str_icon, direction='lr')
         nparr = np.array(texto.todata(2))
