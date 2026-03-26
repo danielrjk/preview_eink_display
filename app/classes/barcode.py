@@ -10,6 +10,102 @@ class BarcodeType(Enum):
     UPCE  = 4
 
 class BarCode:
+    # Built-in 5x7 digit bitmaps matching Adafruit_GFX default font (glcdfont.c)
+    DIGIT_BITMAPS = {
+        0: [
+            [0,1,1,1,0],
+            [1,0,0,0,1],
+            [1,0,0,1,1],
+            [1,0,1,0,1],
+            [1,1,0,0,1],
+            [1,0,0,0,1],
+            [0,1,1,1,0],
+        ],
+        1: [
+            [0,0,1,0,0],
+            [0,1,1,0,0],
+            [0,0,1,0,0],
+            [0,0,1,0,0],
+            [0,0,1,0,0],
+            [0,0,1,0,0],
+            [0,1,1,1,0],
+        ],
+        2: [
+            [0,1,1,1,0],
+            [1,0,0,0,1],
+            [0,0,0,0,1],
+            [0,1,1,1,0],
+            [1,0,0,0,0],
+            [1,0,0,0,0],
+            [1,1,1,1,1],
+        ],
+        3: [
+            [1,1,1,1,1],
+            [0,0,0,0,1],
+            [0,0,0,1,0],
+            [0,0,1,1,0],
+            [0,0,0,0,1],
+            [1,0,0,0,1],
+            [0,1,1,1,0],
+        ],
+        4: [
+            [0,0,0,1,0],
+            [0,0,1,1,0],
+            [0,1,0,1,0],
+            [1,0,0,1,0],
+            [1,1,1,1,1],
+            [0,0,0,1,0],
+            [0,0,0,1,0],
+        ],
+        5: [
+            [1,1,1,1,1],
+            [1,0,0,0,0],
+            [1,1,1,1,0],
+            [0,0,0,0,1],
+            [0,0,0,0,1],
+            [1,0,0,0,1],
+            [0,1,1,1,0],
+        ],
+        6: [
+            [0,0,1,1,1],
+            [0,1,0,0,0],
+            [1,0,0,0,0],
+            [1,1,1,1,0],
+            [1,0,0,0,1],
+            [1,0,0,0,1],
+            [0,1,1,1,0],
+        ],
+        7: [
+            [1,1,1,1,1],
+            [0,0,0,0,1],
+            [0,0,0,0,1],
+            [0,0,0,1,0],
+            [0,0,1,0,0],
+            [0,1,0,0,0],
+            [1,0,0,0,0],
+        ],
+        8: [
+            [0,1,1,1,0],
+            [1,0,0,0,1],
+            [1,0,0,0,1],
+            [0,1,1,1,0],
+            [1,0,0,0,1],
+            [1,0,0,0,1],
+            [0,1,1,1,0],
+        ],
+        9: [
+            [0,1,1,1,0],
+            [1,0,0,0,1],
+            [1,0,0,0,1],
+            [0,1,1,1,1],
+            [0,0,0,0,1],
+            [0,0,0,1,0],
+            [1,1,1,0,0],
+        ],
+    }
+
+    DIGIT_PADDING_TOP = 3
+
     # Encoding patterns for EAN-13
     EAN_L = [
         "0001101", "0011001", "0010011", "0111101", "0100011",
@@ -25,6 +121,14 @@ class BarCode:
     ]
     EAN13_PATTERN = [
         "LLLLLL", "LLGLGG", "LLGGLG", "LLGGGL", "LGLLGG",
+        "LGGLLG", "LGGGLL", "LGLGLG", "LGLGGL", "LGGLGL"
+    ]
+    UPCE_ZERO_PATTERN = [
+        "GGGLLL", "GGLGLL", "GGLLGL", "GGLLLG", "GLGGLL",
+        "GLLGGL", "GLLLGG", "GLGLGL", "GLGLLG", "GLLGLG"
+    ]
+    UPCE_ONE_PATTERN = [
+        "LLLGGG", "LLGLGG", "LLGGLG", "LLGGGL", "LGLLGG",
         "LGGLLG", "LGGGLL", "LGLGLG", "LGLGGL", "LGGLGL"
     ]
 
@@ -174,20 +278,71 @@ class BarCode:
 
     # --- Drawing Methods ---
 
+    def _get_digit_width(self):
+        if not self.show_digits:
+            return 0
+        return 5 * self.scale
+
+    def _get_digit_height(self):
+        if not self.show_digits:
+            return 0
+        return 7 * self.scale
+
+    def _draw_digit(self, digit_char, x, y):
+        """
+        Renders a single digit at (x, y) using the built-in 3x5 bitmap, scaled by self.scale.
+        """
+        if not self.show_digits:
+            return
+        digit = int(digit_char)
+        bitmap = self.DIGIT_BITMAPS[digit]
+        for row_idx, row in enumerate(bitmap):
+            for col_idx, pixel in enumerate(row):
+                if pixel:
+                    self.tela.fillRect(
+                        x + col_idx * self.scale,
+                        y + row_idx * self.scale,
+                        self.scale, self.scale,
+                        self.bar_color
+                    )
+
+    def _draw_pattern(self, pattern, x, y, bar_height):
+        """
+        Draws a binary pattern string as bars at (x, y) with the given height.
+        """
+        for i, bit in enumerate(pattern):
+            if bit == '1':
+                self.tela.fillRect(x + i * self.scale, y, self.scale, bar_height, self.bar_color)
+
     def getWidth(self, barcode_type):
         """
         Computes the width (in pixels) of the barcode drawing based on the barcode type and current scale.
         """
-        PADDING = 5 * self.scale
-        if barcode_type in (BarcodeType.EAN13, BarcodeType.UPCA):
-            # start guard (3) + left digits (6*7) + middle guard (5) + right digits (6*7) + end guard (3)
-            width = 2 * PADDING + (3 + 42 + 5 + 42 + 3) * self.scale
-        elif barcode_type in (BarcodeType.EAN8, BarcodeType.UPCE):
-            # simplified for 8-digit codes
-            width = 2 * PADDING + (3 + 28 + 3) * self.scale
+        digit_width = self._get_digit_width()
+        padding = 2 * 5 * self.scale
+
+        if barcode_type == BarcodeType.EAN8:
+            guard_length = (3 + 5 + 3) * self.scale
+            bar_length = 7 * 8 * self.scale
+        elif barcode_type == BarcodeType.EAN13:
+            guard_length = (3 + 5 + 3) * self.scale
+            bar_length = 7 * 12 * self.scale
+            if self.show_digits:
+                padding += digit_width + self.scale
+        elif barcode_type == BarcodeType.UPCA:
+            guard_length = (3 + 5 + 3) * self.scale
+            bar_length = 7 * 12 * self.scale
+            if self.show_digits:
+                padding += 2 * (digit_width + self.scale)
+        elif barcode_type == BarcodeType.UPCE:
+            guard_length = (3 + 0 + 6) * self.scale
+            bar_length = 7 * 6 * self.scale
+            if self.show_digits:
+                padding += 2 * (digit_width + self.scale)
         else:
-            width = 0
-        return width
+            return 0
+
+        return padding + guard_length + bar_length
 
     def draw(self, code, x, y, height, barcode_type=BarcodeType.Unknown):
         """
@@ -212,47 +367,109 @@ class BarCode:
             print("Barcode validation failed.")
             return False
 
-        # Implement drawing for EAN-13 only.
-        if barcode_type == BarcodeType.EAN13:
-            if len(code) != 13:
-                print("EAN-13 barcode must have 13 digits.")
-                return False
-
-            width = self.getWidth(barcode_type)
-            # Draw the background rectangle.
-            self.tela.fillRect(x, y, width, height, self.background_color)
-
-            PADDING = 5 * self.scale
-            current_x = x + PADDING
-
-            # Build the barcode pattern: start guard, left side, middle guard, right side, end guard.
-            full_pattern = "101"
-            first_digit = int(code[0])
-            pattern_scheme = self.EAN13_PATTERN[first_digit]
-            left_digits = code[1:7]
-            for i, digit_char in enumerate(left_digits):
-                digit = int(digit_char)
-                if pattern_scheme[i] == 'L':
-                    full_pattern += self.EAN_L[digit]
-                else:
-                    full_pattern += self.EAN_G[digit]
-            full_pattern += "01010"
-            right_digits = code[7:13]
-            for digit_char in right_digits:
-                digit = int(digit_char)
-                full_pattern += self.EAN_R[digit]
-            full_pattern += "101"
-
-            # Debug: Print the built pattern.
-
-            # Draw the barcode bars.
-            for bit in full_pattern:
-                if bit == '1':
-                    self.tela.fillRect(current_x, y, self.scale, height, self.bar_color)
-                current_x += self.scale
-
-            # (Optional: Implement drawing digits if self.show_digits is True.)
-            return True
-        else:
-            print("Barcode type not implemented.")
+        width = self.getWidth(barcode_type)
+        if width == 0:
             return False
+
+        # Draw the background rectangle
+        self.tela.fillRect(x, y, width, height, self.background_color)
+
+        PADDING = 5 * self.scale
+        digit_height = self._get_digit_height()
+        digit_width = self._get_digit_width()
+
+        # Calculate bar heights (mirroring BarcodeGFX layout)
+        bar_y = y + PADDING
+        number_y = y + height - PADDING - digit_height
+        bar_height = number_y - bar_y - self.DIGIT_PADDING_TOP * self.scale
+        long_bar_height = bar_height + self.DIGIT_PADDING_TOP * self.scale + digit_height // 2
+        if not self.show_digits:
+            bar_height += self.DIGIT_PADDING_TOP * self.scale
+            long_bar_height = bar_height
+
+        current_x = x + PADDING
+        first_digit = int(code[0])
+
+        # Determine index ranges for left/right side digit loops
+        if barcode_type == BarcodeType.EAN13:
+            index1, index2, index3 = 1, 7, 13
+        elif barcode_type == BarcodeType.EAN8:
+            index1, index2, index3 = 0, 4, 8
+        elif barcode_type == BarcodeType.UPCA:
+            index1, index2, index3 = 1, 6, 11
+        elif barcode_type == BarcodeType.UPCE:
+            index1, index2, index3 = 1, 7, 7
+
+        # Draw first digit outside the bars (all types except EAN-8)
+        if barcode_type != BarcodeType.EAN8 and self.show_digits:
+            self._draw_digit(code[0], current_x, number_y)
+            current_x += digit_width + self.scale
+
+        # Start guard
+        self._draw_pattern("101", current_x, bar_y, long_bar_height)
+        current_x += 3 * self.scale
+
+        # UPC-A: first digit after start guard uses long bars
+        if barcode_type == BarcodeType.UPCA:
+            self._draw_pattern(self.EAN_L[first_digit], current_x, bar_y, long_bar_height)
+            current_x += 7 * self.scale
+
+        # Draw left side
+        for i in range(index1, index2):
+            digit = int(code[i])
+            if barcode_type == BarcodeType.EAN13:
+                pattern_scheme = self.EAN13_PATTERN[first_digit]
+                if pattern_scheme[i - 1] == 'G':
+                    pattern = self.EAN_G[digit]
+                else:
+                    pattern = self.EAN_L[digit]
+            elif barcode_type == BarcodeType.UPCE:
+                last_digit = int(code[7])
+                if first_digit == 0:
+                    pattern_scheme = self.UPCE_ZERO_PATTERN[last_digit]
+                else:
+                    pattern_scheme = self.UPCE_ONE_PATTERN[last_digit]
+                if pattern_scheme[i - 1] == 'G':
+                    pattern = self.EAN_G[digit]
+                else:
+                    pattern = self.EAN_L[digit]
+            else:
+                pattern = self.EAN_L[digit]
+
+            self._draw_pattern(pattern, current_x, bar_y, bar_height)
+            digit_x = current_x + int(7 * self.scale * 0.5) - digit_width // 2
+            self._draw_digit(code[i], digit_x, number_y)
+            current_x += 7 * self.scale
+
+        # Middle guard (not for UPC-E)
+        if barcode_type != BarcodeType.UPCE:
+            self._draw_pattern("01010", current_x, bar_y, long_bar_height)
+            current_x += 5 * self.scale
+
+        # Draw right side
+        for i in range(index2, index3):
+            digit = int(code[i])
+            self._draw_pattern(self.EAN_R[digit], current_x, bar_y, bar_height)
+            digit_x = current_x + int(7 * self.scale * 0.5) - digit_width // 2
+            self._draw_digit(code[i], digit_x, number_y)
+            current_x += 7 * self.scale
+
+        # UPC-A: last digit before end guard uses long bars
+        if barcode_type == BarcodeType.UPCA:
+            last_digit = int(code[11])
+            self._draw_pattern(self.EAN_R[last_digit], current_x, bar_y, long_bar_height)
+            current_x += 7 * self.scale
+
+        # End guard
+        if barcode_type == BarcodeType.UPCE:
+            self._draw_pattern("010101", current_x, bar_y, long_bar_height)
+            current_x += 6 * self.scale
+        else:
+            self._draw_pattern("101", current_x, bar_y, long_bar_height)
+            current_x += 3 * self.scale
+
+        # Draw last digit outside (UPC-A and UPC-E only)
+        if barcode_type in (BarcodeType.UPCA, BarcodeType.UPCE) and self.show_digits:
+            self._draw_digit(code[index3], current_x + self.scale, number_y)
+
+        return True
