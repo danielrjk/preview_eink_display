@@ -6,121 +6,128 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Visualizador de Display E-Ink</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/monokai.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/dracula.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/material-darker.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/eclipse.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/neat.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/clike/clike.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
     <style>
-        html {
-            height: 100%;
+        :root {
+            --bg-primary: #1e1e1e;
+            --bg-surface: #272822;
+            --bg-elevated: #3e3d32;
+            --accent: #a6e22e;
+            --accent-hover: #8bc528;
+            --text-primary: #f8f8f2;
+            --text-secondary: #75715e;
+            --border: #49483e;
         }
+
+        html { height: 100%; }
 
         body {
-            display: flex;
-            flex-direction: row;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
             margin: 0;
-            height: 100%;
-        }
-
-        #editor-container {
-            display: flex;
-            flex-direction: column;
-            flex: 1;
-            border: 1px solid #310029;
             height: 100vh;
+            overflow: hidden;
+            background: var(--bg-primary);
+            color: var(--text-primary);
         }
 
-        #preview {
-            flex: 1;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            border: 1px solid #ccc;
-            position: relative;
-        }
+        #editor-container { height: 100vh; border-right: 1px solid var(--border); min-width: 0; }
+        #editor { flex: 1; min-height: 0; }
+        #preview { height: 100vh; min-width: 0; }
 
-        #zoom-controls {
-            position: absolute;
-            top: 10px;
-            width: 100%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 10px;
-        }
-
-        #zoom-slider {
-            margin-left: 10px;
-            width: 50%;
-        }
-
-        #editor {
-            flex: 1;
-            height: calc(100% - 50px);
-            ;
-        }
+        .CodeMirror { height: 100%; }
+        .CodeMirror-gutters { border-right: 1px solid var(--border) !important; }
+        .error-line { background-color: rgba(249, 38, 114, 0.35) !important; }
 
         canvas {
             display: block;
             background: white;
-            border: 4px solid #333;
+            border: 2px solid var(--border);
+            border-radius: 2px;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+        canvas.success-flash {
+            border-color: var(--accent);
+            box-shadow: 0 0 16px rgba(166, 226, 46, 0.3);
         }
 
-        #coordinates {
-            margin-top: 10px;
-            text-align: center;
+        .loading-overlay {
             position: absolute;
-            top: 35px;
-            width: 100%;
+            inset: 0;
             display: flex;
             justify-content: center;
             align-items: center;
+            background: rgba(30, 30, 30, 0.6);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
         }
+        .loading-overlay.active { opacity: 1; }
 
-        button {
-            padding: 10px;
-            background-color: #007BFF;
-            color: white;
-            border: none;
-            cursor: pointer;
-            text-align: center;
-        }
+        kbd { background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text-primary); }
+        #zoom-slider { width: 120px; accent-color: var(--accent); }
 
-        button:hover {
-            background-color: #0056b3;
-        }
-
-        .CodeMirror {
-            height: 100%;
-        }
-
-        .error-line {
-            background-color: #ffcccc !important;
+        @media (max-width: 768px) {
+            body { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+            #editor-container { height: 50vh; border-right: none; border-bottom: 1px solid var(--border); }
+            #preview { height: 50vh; }
         }
     </style>
 </head>
 
 <body>
-    <div id="editor-container">
-        <button onclick="sendCode()">Rodar</button>
+    <div id="editor-container" class="d-flex flex-column">
+        <div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom flex-shrink-0" style="background:var(--bg-surface);border-color:var(--border)!important">
+            <button class="btn btn-sm fw-semibold" style="background:var(--accent);color:#272822" onclick="sendCode()"><i class="bi bi-play-fill"></i> Rodar</button>
+            <small class="d-inline-flex align-items-center gap-1" style="color:var(--text-secondary)"><kbd>Ctrl</kbd> + <kbd>Enter</kbd></small>
+            <div class="d-inline-flex align-items-center gap-1 ms-auto">
+                <i class="bi bi-palette" style="color:var(--text-secondary)"></i>
+                <select id="theme-select" class="form-select form-select-sm" style="width:auto;background:var(--bg-elevated);color:var(--text-primary);border-color:var(--border)" onchange="setTheme(this.value)">
+                <option value="monokai" selected>Monokai</option>
+                <option value="dracula">Dracula</option>
+                <option value="material-darker">Material Darker</option>
+                <option value="eclipse">Eclipse</option>
+                <option value="neat">Neat</option>
+            </select>
+            </div>
+        </div>
         <div id="editor"></div>
     </div>
-    <div id="preview">
-        <div id="zoom-controls">
-            <button id="rotate-button" onclick="rotateCanvas()">Rotação: 1</button>
-            <label for="zoom-slider">Zoom:</label>
-            <input id="zoom-slider" type="range" min="10" max="20" step="0.1" value="1" oninput="updateZoom()">
+    <div id="preview" class="d-flex flex-column">
+        <div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom flex-shrink-0 small" style="background:var(--bg-surface);border-color:var(--border)!important">
+            <button class="btn btn-sm" id="rotate-button" style="background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border)" onclick="rotateCanvas()"><i class="bi bi-arrow-clockwise"></i> Rotação: 1</button>
+            <div class="d-flex align-items-center gap-1" style="color:var(--text-secondary)">
+                <i class="bi bi-zoom-in"></i>
+                <input id="zoom-slider" type="range" min="10" max="20" step="0.1" value="10" oninput="updateZoom()">
+            </div>
+            <span class="badge font-monospace ms-auto d-inline-flex align-items-center gap-1" id="coordinates" style="background:var(--bg-elevated);color:var(--text-primary)"><i class="bi bi-crosshair"></i> x: 0, y: 0</span>
         </div>
-        <div id="coordinates">x: 0, y: 0</div>
-        <canvas id="displayCanvas" width="296" height="128"></canvas>
+        <div class="position-relative d-flex justify-content-center align-items-center flex-grow-1 overflow-auto">
+            <canvas id="displayCanvas" width="296" height="128"></canvas>
+            <div class="loading-overlay" id="loading-overlay">
+                <div class="spinner-border spinner-border-sm" style="color:var(--accent)" role="status"></div>
+            </div>
+        </div>
     </div>
+    <div class="toast-container position-fixed bottom-0 end-0 p-3" id="toast-container"></div>
+
 
     <script>
         const editor = CodeMirror(document.getElementById('editor'), {
             mode: "text/x-arduino",
             lineNumbers: true,
+            theme: "monokai",
             value:
 `fontes.setFont( u8g2_font_helvB12_te );
 fontes.setFontMode(1);
@@ -130,18 +137,61 @@ fontes.print("Meu texto");
 tela.fillRect(100, 50, 96, 28, GxEPD_BLACK);
 tela.fillCircle(150, 63, 10, GxEPD_WHITE);
 
-tela.drawLine(20, 110, 180, 110, GxEPD_BLACK);
-`
+tela.drawLine(20, 110, 180, 110, GxEPD_BLACK);`
         });
 
         const canvas = document.getElementById('displayCanvas');
         const ctx = canvas.getContext('2d');
         const zoomSlider = document.getElementById('zoom-slider');
+        const coordinatesBox = document.getElementById('coordinates');
 
         let rotationState = 1;
 
+        const themes = {
+            monokai:           { bgPrimary:'#1e1e1e', bgSurface:'#272822', bgElevated:'#3e3d32', accent:'#a6e22e', accentHover:'#8bc528', textPrimary:'#f8f8f2', textSecondary:'#75715e', border:'#49483e' },
+            dracula:           { bgPrimary:'#282a36', bgSurface:'#21222c', bgElevated:'#44475a', accent:'#bd93f9', accentHover:'#a673e6', textPrimary:'#f8f8f2', textSecondary:'#6272a4', border:'#44475a' },
+            'material-darker': { bgPrimary:'#212121', bgSurface:'#1a1a1a', bgElevated:'#333333', accent:'#89ddff', accentHover:'#6bc5e8', textPrimary:'#eeffff', textSecondary:'#545454', border:'#333333' },
+            eclipse:           { bgPrimary:'#ffffff', bgSurface:'#f5f5f5', bgElevated:'#e8e8e8', accent:'#1a73e8', accentHover:'#1557b0', textPrimary:'#1e1e1e', textSecondary:'#6e6e6e', border:'#d4d4d4' },
+            neat:              { bgPrimary:'#fafafa', bgSurface:'#f0f0f0', bgElevated:'#e0e0e0', accent:'#2e7d32', accentHover:'#1b5e20', textPrimary:'#212121', textSecondary:'#757575', border:'#cccccc' },
+        };
+
+        function setTheme(name) {
+            const t = themes[name];
+            if (!t) return;
+            const r = document.documentElement.style;
+            r.setProperty('--bg-primary', t.bgPrimary);
+            r.setProperty('--bg-surface', t.bgSurface);
+            r.setProperty('--bg-elevated', t.bgElevated);
+            r.setProperty('--accent', t.accent);
+            r.setProperty('--accent-hover', t.accentHover);
+            r.setProperty('--text-primary', t.textPrimary);
+            r.setProperty('--text-secondary', t.textSecondary);
+            r.setProperty('--border', t.border);
+            editor.setOption('theme', name);
+        }
+
+        function showToast(message, type = 'error') {
+            const container = document.getElementById('toast-container');
+            const colorClass = type === 'error' ? 'text-bg-danger' : 'text-bg-success';
+            const icon = type === 'error' ? 'bi-exclamation-circle' : 'bi-check-circle';
+            const el = document.createElement('div');
+            el.className = `toast align-items-center ${colorClass} border-0`;
+            el.setAttribute('role', 'alert');
+            el.innerHTML = `<div class="d-flex"><div class="toast-body"><i class="bi ${icon} me-2"></i>${message}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div>`;
+            container.appendChild(el);
+            const toast = new bootstrap.Toast(el, { delay: 4000 });
+            toast.show();
+            el.addEventListener('hidden.bs.toast', () => el.remove());
+        }
+
         async function sendCode() {
             const code = editor.getValue();
+            const runBtn = document.querySelector('.btn');
+            const overlay = document.getElementById('loading-overlay');
+
+            runBtn.disabled = true;
+            overlay.classList.add('active');
+
             try {
                 const response = await fetch(window.location.href + '/process-code', {
                     method: 'POST',
@@ -158,23 +208,28 @@ tela.drawLine(20, 110, 180, 110, GxEPD_BLACK);
                         editor.removeLineClass(line, 'background', 'error-line');
                     });
                     renderCanvas(data.pixels);
+                    canvas.classList.add('success-flash');
+                    setTimeout(() => canvas.classList.remove('success-flash'), 600);
                 }
             } catch (error) {
                 console.error("Erro ao enviar código:", error);
                 displayErrorMessage("Erro de conexão ou servidor indisponível.", 0);
+            } finally {
+                runBtn.disabled = false;
+                overlay.classList.remove('active');
             }
         }
 
         function displayErrorMessage(message, line) {
             if (line != 0){
-                lineNumber = parseInt(line) - 1; 
+                lineNumber = parseInt(line) - 1;
                 editor.eachLine(line => {
                     editor.removeLineClass(line, 'background', 'error-line');
                 });
                 editor.addLineClass(lineNumber, 'background', 'error-line');
             }
-            
-            alert(message);
+
+            showToast(message, 'error');
         }
 
         function renderCanvas(pixels) {
@@ -195,19 +250,18 @@ tela.drawLine(20, 110, 180, 110, GxEPD_BLACK);
         }
 
         canvas.addEventListener('click', (event) => {
-            const coordinatesBox = document.getElementById('coordinates');
-            const canvasBorderWidth = 4;
+            const canvasBorderWidth = 2;
             const rect = canvas.getBoundingClientRect();
             const scale = parseFloat(canvas.dataset.scale || 1);
             const x = Math.floor((event.clientX - rect.left - canvasBorderWidth) / scale);
             const y = Math.floor((event.clientY - rect.top - canvasBorderWidth) / scale);
-            coordinatesBox.textContent = `x: ${x}, y: ${y}`;
+            coordinatesBox.innerHTML = `<i class="bi bi-crosshair"></i> x: ${x}, y: ${y}`;
         });
 
         function rotateCanvas() {
             rotationState = (rotationState + 1) % 4; // Alterna entre 0, 1, 2, 3
             const rotateButton = document.getElementById('rotate-button');
-            rotateButton.textContent = `Rotação: ${rotationState}`;
+            rotateButton.innerHTML = `<i class="bi bi-arrow-clockwise"></i> Rotação: ${rotationState}`;
 
             if (rotationState === 0 || rotationState === 2) {
                 // Vertical
@@ -224,7 +278,7 @@ tela.drawLine(20, 110, 180, 110, GxEPD_BLACK);
 
             // Limpa o canvas e exibe as alterações
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            coordinatesBox.textContent = `x: 0, y: 0`; // Reseta coordenadas
+            coordinatesBox.innerHTML = `<i class="bi bi-crosshair"></i> x: 0, y: 0`; // Reseta coordenadas
         }
 
         document.addEventListener('keydown', (event) => {

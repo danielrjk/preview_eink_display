@@ -66,13 +66,10 @@ def convert_c_to_python(code):
     code = code.replace('}', '')  # Remove chaves de fechamento
     code = code.replace('true', 'True')
     code = code.replace('false', 'False')
-    code = re.sub(r';\s*$', '', code, flags=re.MULTILINE)
+    code = re.sub(r';[^\S\n]*$', '', code, flags=re.MULTILINE)
 
-    aux_c = ""
-    for linha in code.split("\n"):
-        aux_c+=linha.strip()+"\n"
-
-    code = aux_c.strip()
+    lines = code.split("\n")
+    code = "\n".join(linha.strip() for linha in lines)
 
     
     return code

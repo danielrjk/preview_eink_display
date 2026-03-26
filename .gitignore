@@ -34,3 +34,4 @@ app/migrations/*.py
 .DS_Store
 
 testes/
+.claude
