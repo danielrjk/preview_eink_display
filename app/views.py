@@ -41,11 +41,45 @@ def process_code(request):
     else:
         return Http404
 
+def _convert_for_loop(match):
+    var = match.group(1)
+    start = match.group(2)
+    op = match.group(3)
+    end = match.group(4)
+    increment = match.group(5).strip()
+
+    if increment in (f'{var}++', f'++{var}'):
+        if op == '<':
+            return f'for {var} in range({start}, {end}):'
+        elif op == '<=':
+            return f'for {var} in range({start}, {end}+1):'
+    elif increment in (f'{var}--', f'--{var}'):
+        if op == '>':
+            return f'for {var} in range({start}, {end}, -1):'
+        elif op == '>=':
+            return f'for {var} in range({start}, {end}-1, -1):'
+    else:
+        step_match = re.match(rf'{re.escape(var)}\s*(\+|-)\s*=\s*(\w+)', increment)
+        if step_match:
+            sign = step_match.group(1)
+            step = step_match.group(2)
+            if sign == '+':
+                if op == '<':
+                    return f'for {var} in range({start}, {end}, {step}):'
+                elif op == '<=':
+                    return f'for {var} in range({start}, {end}+1, {step}):'
+            elif sign == '-':
+                if op == '>':
+                    return f'for {var} in range({start}, {end}, -{step}):'
+                elif op == '>=':
+                    return f'for {var} in range({start}, {end}-1, -{step}):'
+
+    return match.group(0)
+
 def convert_c_to_python(code):
-    
     code = re.sub(
-        r'for\s*\(\s*int\s+(\w+)\s*=\s*(\d+);\s*\1\s*<\s*(\d+);\s*\1\+\+\s*\)\s*\{',
-        r'for \1 in range(\2, \3):',
+        r'for\s*\(\s*(?:int\s+)?(\w+)\s*=\s*(\w+)\s*;\s*\1\s*(<=?|>=?)\s*(\w+)\s*;\s*((?:\1\+\+|\+\+\1|\1--|\-\-\1|\1\s*[\+\-]=\s*\w+))\s*\)\s*\{',
+        _convert_for_loop,
         code
     )
     
@@ -69,7 +103,7 @@ def convert_c_to_python(code):
     code = re.sub(r';[^\S\n]*$', '', code, flags=re.MULTILINE)
 
     lines = code.split("\n")
-    code = "\n".join(linha.strip() for linha in lines)
+    code = "\n".join(linha.rstrip() for linha in lines)
 
     
     return code
