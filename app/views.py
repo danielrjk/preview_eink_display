@@ -125,6 +125,7 @@ def exec_code(code, pixels):
                 'barcode': barcode,
                 'codigoBarras': barcode,
                 'qrcode': qrcode,
+                'qr': qrcode,
                 'pixels': pixels,
                 'GxEPD_BLACK': GxEPD_BLACK,
                 'GxEPD_WHITE': GxEPD_WHITE,
