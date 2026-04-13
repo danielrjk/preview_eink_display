@@ -9,9 +9,10 @@ class Fontes:
         self.cursor = (0, 0)
         self.tela = tela
         self.size = 0
+        self.font_mode = 0
 
-    def setFontMode(*args):
-        pass
+    def setFontMode(self, mode):
+        self.font_mode = int(mode)
 
     def setFont(self, font_name):
         # Example: "u8g2_font_ncenB14_tr" => "ncenB14"
@@ -56,37 +57,64 @@ class Fontes:
 
     def print(self, text):
         font = self.font
-        texto = font.draw(text, direction='lr')
-        nparr = np.array(texto.todata(2))
         pixels = self.tela.pixels
         x, y = self.cursor
-        # In your original code you swapped x,y => just replicate that logic
         x, y = y, x
         x -= self.baseline_offset
         y += self.fbbxoff
-        for i, linha in enumerate(nparr):
-            for j, celula in enumerate(linha):
-                if 0 <= x + i < len(pixels) and 0 <= y + j < len(pixels[0]):
-                    # 'any' is basically an OR operation
-                    pixels[x + i][y + j] = any([celula, pixels[x + i][y + j]])
+        if self.font_mode == 1:
+            texto = font.draw(text, direction='lr')
+            nparr = np.array(texto.todata(2))
+            for i, linha in enumerate(nparr):
+                for j, celula in enumerate(linha):
+                    if 0 <= x + i < len(pixels) and 0 <= y + j < len(pixels[0]):
+                        pixels[x + i][y + j] = any([celula, pixels[x + i][y + j]])
+        else:
+            # Mode 0: draw a solid filled rectangle for each character's bounding box (bbx x bby)
+            glyph_by_code = {g[1]: g for _, g in font.glyphs.items()}
+            baseline_row = x + self.baseline_offset
+            char_col = 0
+            for char in text:
+                g = glyph_by_code.get(ord(char))
+                if g is None:
+                    continue
+                advance, bbx, bby, bbxoff, bbyoff = g[8], g[2], g[3], g[4], g[5]
+                char_col += advance
+                if char == ' ' or bbx == 0 or bby == 0:
+                    continue
+                col_start = y + (char_col - advance) + bbxoff - self.fbbxoff
+                row_start = baseline_row - bbyoff - bby + 1
+                for i in range(bby):
+                    for j in range(col_start, col_start + bbx):
+                        if 0 <= row_start + i < len(pixels) and 0 <= j < len(pixels[0]):
+                            pixels[row_start + i][j] = 1
         self.tela.pixels = pixels
 
     def drawGlyph(self, x, y, encoding):
-        # Save the old font
-        # fonteAnterior = self.font
-        # self.setFont(font_name)
         font = self.font
         pixels = self.tela.pixels
         x, y = int(y), int(x)
         x -= self.baseline_offset
         y += self.fbbxoff
-        str_icon = chr(encoding)
-        texto = font.draw(str_icon, direction='lr')
-        nparr = np.array(texto.todata(2))
-        for i, linha in enumerate(nparr):
-            for j, celula in enumerate(linha):
-                if 0 <= x + i < len(pixels) and 0 <= y + j < len(pixels[0]):
-                    pixels[x + i][y + j] = any([celula, pixels[x + i][y + j]])
+        if self.font_mode == 0:
+            # Mode 0: draw a solid filled rectangle for the glyph's bounding box (bbx x bby)
+            for enc, g in font.glyphs.items():
+                if g[1] == encoding:
+                    bbx, bby, bbxoff, bbyoff = g[2], g[3], g[4], g[5]
+                    baseline_row = x + self.baseline_offset
+                    col_start = y + bbxoff - self.fbbxoff
+                    row_start = baseline_row - bbyoff - bby + 1
+                    for i in range(bby):
+                        for j in range(col_start, col_start + bbx):
+                            if 0 <= row_start + i < len(pixels) and 0 <= j < len(pixels[0]):
+                                pixels[row_start + i][j] = 1
+                    break
+        else:
+            str_icon = chr(encoding)
+            texto = font.draw(str_icon, direction='lr')
+            nparr = np.array(texto.todata(2))
+            for i, linha in enumerate(nparr):
+                for j, celula in enumerate(linha):
+                    if 0 <= x + i < len(pixels) and 0 <= y + j < len(pixels[0]):
+                        pixels[x + i][y + j] = any([celula, pixels[x + i][y + j]])
         self.tela.pixels = pixels
-        # Restore old font
-        # self.font = fonteAnterior
