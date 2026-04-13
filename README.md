@@ -66,7 +66,6 @@ Font names follow the u8g2 convention, e.g. `u8g2_font_ncenB14_tr`, `u8g2_font_6
 ### Barcode (`barcode`)
 
 ```python
-barcode = BarCode(display)
 barcode.setScale(2).setShowDigits(True)
 barcode.draw("5901234123457", x, y, height)
 ```
@@ -83,7 +82,6 @@ Supported formats: EAN-13, EAN-8, UPC-A, UPC-E.
 ### QR Code (`qrcode`)
 
 ```python
-qr = QRCode(display)
 qr.setScale(2)
 qr.draw("https://example.com", x, y)
 ```
