@@ -119,7 +119,9 @@ def exec_code(code, pixels):
             compiled_code,
             {
                 'tela': tela,
+                'display': tela,
                 'fontes': fontes,
+                'fonts': fontes,
                 'barcode': barcode,
                 'codigoBarras': barcode,
                 'qrcode': qrcode,
