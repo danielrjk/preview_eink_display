@@ -66,7 +66,8 @@ Font names follow the u8g2 convention, e.g. `u8g2_font_ncenB14_tr`, `u8g2_font_6
 ### Barcode (`barcode`)
 
 ```python
-barcode.setScale(2).setShowDigits(True)
+barcode.setScale(2)
+barcode.setShowDigits(True)
 barcode.draw("5901234123457", x, y, height)
 ```
 
