@@ -32,9 +32,10 @@ Write your display code in the left panel using the API below. The preview updat
 
 ```python
 display.fillScreen(GxEPD_WHITE)
-display.setFont("u8g2_font_ncenB14_tr")
-display.setCursor(10, 40)
-display.print("Hello, world!")
+fonts.setFont("u8g2_font_ncenB14_tr")
+fonts.setFontMode(1)
+fonts.setCursor(10, 40)
+fonts.print("Hello, world!")
 ```
 
 ## API Reference
