@@ -53,7 +53,7 @@ fonts.print("Hello, world!")
 | `drawTriangle(x1,y1, x2,y2, x3,y3, color)` | Draw a triangle outline |
 | `fillTriangle(x1,y1, x2,y2, x3,y3, color)` | Draw a filled triangle |
 
-### Fonts (`display`)
+### Fonts (`fonts`)
 
 | Method | Description |
 |---|---|
