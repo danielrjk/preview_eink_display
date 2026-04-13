@@ -19,6 +19,7 @@ class Fontes:
         #if len(font_name.split("_")) != 4:
             #raise Exception("Nome de Fonte incompleta")
         font_name = "_".join(font_name.split("_")[2:-1])
+        self.font_mode = 0
         #self.size = int(re.sub(r"\D", "", font_name))
 
         # Build path to your BDF font
