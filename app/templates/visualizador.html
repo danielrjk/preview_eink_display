@@ -77,7 +77,12 @@
         .loading-overlay.active { opacity: 1; }
 
         kbd { background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text-primary); }
-        #zoom-slider { width: 120px; accent-color: var(--accent); }
+        #zoom-slider { width: 100px; accent-color: var(--accent); }
+
+        #grid-toggle-btn.active {
+            color: var(--accent) !important;
+            border-color: var(--accent) !important;
+        }
 
         @media (max-width: 768px) {
             body { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
@@ -106,16 +111,30 @@
         <div id="editor"></div>
     </div>
     <div id="preview" class="d-flex flex-column">
-        <div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom flex-shrink-0 small" style="background:var(--bg-surface);border-color:var(--border)!important">
+        <div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom flex-shrink-0 small flex-wrap" style="background:var(--bg-surface);border-color:var(--border)!important">
             <button class="btn btn-sm" id="rotate-button" style="background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border)" onclick="rotateCanvas()"><i class="bi bi-arrow-clockwise"></i> Rotação: 1</button>
+
             <div class="d-flex align-items-center gap-1" style="color:var(--text-secondary)">
                 <i class="bi bi-zoom-in"></i>
-                <input id="zoom-slider" type="range" min="10" max="20" step="0.1" value="10" oninput="updateZoom()">
+                <input id="zoom-slider" type="range" min="10" max="100" step="0.1" value="10" oninput="applyScaleFromSlider()">
             </div>
+
+            <button class="btn btn-sm px-2 py-0" id="grid-toggle-btn"
+                    style="background:var(--bg-elevated);color:var(--text-secondary);border:1px solid var(--border)"
+                    onclick="toggleGrid()" title="Toggle pixel grid">
+                <i class="bi bi-grid-3x3"></i>
+            </button>
+
             <span class="badge font-monospace ms-auto d-inline-flex align-items-center gap-1" id="coordinates" style="background:var(--bg-elevated);color:var(--text-primary)"><i class="bi bi-cursor"></i> x: -, y: -</span>
         </div>
-        <div class="position-relative d-flex justify-content-center align-items-center flex-grow-1 overflow-auto">
-            <canvas id="displayCanvas" width="296" height="128"></canvas>
+        <div id="canvas-scroll-area" class="flex-grow-1"
+             style="overflow:auto;display:flex;padding:16px;box-sizing:border-box;position:relative;">
+            <div id="canvas-wrapper"
+                 style="margin:auto;position:relative;display:inline-block;line-height:0;flex-shrink:0;">
+                <canvas id="displayCanvas" width="296" height="128"></canvas>
+                <div id="gridOverlay"
+                     style="position:absolute;top:0;left:0;pointer-events:none;display:none;"></div>
+            </div>
             <div class="loading-overlay" id="loading-overlay">
                 <div class="spinner-border spinner-border-sm" style="color:var(--accent)" role="status"></div>
             </div>
@@ -147,6 +166,12 @@ tela.drawLine(20, 110, 180, 110, GxEPD_BLACK);`
         const coordinatesBox = document.getElementById('coordinates');
 
         let rotationState = 1;
+
+        // ── Zoom / pan / grid state ───────────────────────────────────────
+        let currentScale = 1;
+        let gridVisible = false;
+        const scrollArea = document.getElementById('canvas-scroll-area');
+        const gridCanvas = document.getElementById('gridOverlay');
 
         const themes = {
             monokai:           { bgPrimary:'#1e1e1e', bgSurface:'#272822', bgElevated:'#3e3d32', accent:'#a6e22e', accentHover:'#8bc528', textPrimary:'#f8f8f2', textSecondary:'#75715e', border:'#49483e' },
@@ -190,6 +215,10 @@ tela.drawLine(20, 110, 180, 110, GxEPD_BLACK);`
             const runBtn = document.querySelector('.btn');
             const overlay = document.getElementById('loading-overlay');
 
+            // Save scroll position — canvas dimensions don't change on re-render.
+            const savedScrollLeft = scrollArea.scrollLeft;
+            const savedScrollTop  = scrollArea.scrollTop;
+
             runBtn.disabled = true;
             overlay.classList.add('active');
 
@@ -209,8 +238,15 @@ tela.drawLine(20, 110, 180, 110, GxEPD_BLACK);`
                         editor.removeLineClass(line, 'background', 'error-line');
                     });
                     renderCanvas(data.pixels);
+                    updateGridOverlay();
                     canvas.classList.add('success-flash');
                     setTimeout(() => canvas.classList.remove('success-flash'), 600);
+
+                    // Restore scroll after layout settles.
+                    requestAnimationFrame(() => {
+                        scrollArea.scrollLeft = savedScrollLeft;
+                        scrollArea.scrollTop  = savedScrollTop;
+                    });
                 }
             } catch (error) {
                 console.error("Erro ao enviar código:", error);
@@ -243,12 +279,97 @@ tela.drawLine(20, 110, 180, 110, GxEPD_BLACK);`
             }
         }
 
-        function updateZoom() {
-            var scale = parseFloat(zoomSlider.value);
-            scale = scale / 10;
-            canvas.style.transform = `scale(${scale})`;
-            canvas.dataset.scale = scale;
+        // ── Zoom functions ────────────────────────────────────────────────
+
+        /**
+         * Apply a new zoom scale.
+         * Updates canvas CSS size, grid overlay, and adjusts scroll so the
+         * visible center remains centered (zoom-toward-center behavior).
+         */
+        function applyScale(newScale) {
+            const oldScale = currentScale;
+            const ratio = newScale / oldScale;
+
+            // Compute new scroll positions before changing the DOM.
+            const newScrollLeft = (scrollArea.scrollLeft + scrollArea.clientWidth  / 2) * ratio - scrollArea.clientWidth  / 2;
+            const newScrollTop  = (scrollArea.scrollTop  + scrollArea.clientHeight / 2) * ratio - scrollArea.clientHeight / 2;
+
+            currentScale = newScale;
+            canvas.style.width  = (canvas.width  * currentScale) + 'px';
+            canvas.style.height = (canvas.height * currentScale) + 'px';
+            canvas.dataset.scale = currentScale;
+
+            updateGridOverlay();
+
+            // Apply scroll after layout reflow.
+            requestAnimationFrame(() => {
+                scrollArea.scrollLeft = Math.max(0, newScrollLeft);
+                scrollArea.scrollTop  = Math.max(0, newScrollTop);
+            });
         }
+
+        /** Read the current slider value and call applyScale(). */
+        function applyScaleFromSlider() {
+            applyScale(parseFloat(zoomSlider.value) / 10);
+        }
+
+// ── Grid overlay functions ────────────────────────────────────────
+
+        /**
+         * Draw pixel-boundary grid lines using CSS background-image.
+         * This guarantees exactly 1 CSS pixel per line regardless of zoom level.
+         * Grid is only drawn when scale >= 2; below that, pixel cells are too
+         * small for grid lines to be useful without obscuring the design.
+         * All sizes derive from canvas.width/height — never hardcoded.
+         */
+        function drawGrid() {
+            const scale = currentScale;
+            const w = canvas.width;
+            const h = canvas.height;
+
+            gridCanvas.style.width  = (w * scale) + 'px';
+            gridCanvas.style.height = (h * scale) + 'px';
+
+            if (scale < 2) {
+                // Cells too small — grid lines would cover the design
+                gridCanvas.style.backgroundImage = 'none';
+                return;
+            }
+
+            gridCanvas.style.backgroundImage =
+                `linear-gradient(to right, rgba(100,100,100,0.3) 1px, transparent 1px),
+                 linear-gradient(to bottom, rgba(100,100,100,0.3) 1px, transparent 1px)`;
+            gridCanvas.style.backgroundSize = `${scale}px ${scale}px`;
+        }
+
+        /**
+         * Refresh the grid overlay. Called after every applyScale() and rotation.
+         * When grid is hidden, keeps CSS size in sync so toggling on is instant.
+         */
+        function updateGridOverlay() {
+            if (!gridVisible) {
+                gridCanvas.style.width  = (canvas.width  * currentScale) + 'px';
+                gridCanvas.style.height = (canvas.height * currentScale) + 'px';
+                return;
+            }
+            drawGrid();
+        }
+
+        /** Toggle pixel grid visibility on/off. */
+        function toggleGrid() {
+            gridVisible = !gridVisible;
+            const btn = document.getElementById('grid-toggle-btn');
+            if (gridVisible) {
+                drawGrid();
+                gridCanvas.style.display = 'block';
+                btn.classList.add('active');
+            } else {
+                gridCanvas.style.display = 'none';
+                btn.classList.remove('active');
+            }
+        }
+
+        // ── Coordinate display ────────────────────────────────────────────
 
         let coordinatesLocked = false;
 
@@ -283,6 +404,8 @@ tela.drawLine(20, 110, 180, 110, GxEPD_BLACK);`
             }
         });
 
+        // ── Rotation ──────────────────────────────────────────────────────
+
         function rotateCanvas() {
             rotationState = (rotationState + 1) % 4; // Alterna entre 0, 1, 2, 3
             const rotateButton = document.getElementById('rotate-button');
@@ -298,20 +421,78 @@ tela.drawLine(20, 110, 180, 110, GxEPD_BLACK);`
                 canvas.height = 128;
             }
 
-            // Reaplica o zoom para manter a escala após a rotação
-            updateZoom();
+            // Re-apply current scale for the new intrinsic dimensions.
+            canvas.style.width  = (canvas.width  * currentScale) + 'px';
+            canvas.style.height = (canvas.height * currentScale) + 'px';
+            canvas.dataset.scale = currentScale;
 
-            // Limpa o canvas e exibe as alterações
+            // Grid overlay must resize for the new canvas dimensions.
+            updateGridOverlay();
+
+            // Reset scroll — dimensions changed significantly.
+            scrollArea.scrollLeft = 0;
+            scrollArea.scrollTop  = 0;
+
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             coordinatesLocked = false;
-            coordinatesBox.innerHTML = `<i class="bi bi-cursor"></i> x: -, y: -`; // Reseta coordenadas
+            coordinatesBox.innerHTML = `<i class="bi bi-cursor"></i> x: -, y: -`;
         }
 
         document.addEventListener('keydown', (event) => {
             if (event.ctrlKey && event.key === 'Enter') {
-                sendCode(); // Chama a função sendCode() quando Ctrl+Enter é pressionado
+                sendCode();
             }
         });
+
+        // ── Initialization ────────────────────────────────────────────────
+        // Apply default 1× zoom via the standard path so CSS width/height
+        // are set from the start (no transform:scale in effect).
+        (function initZoom() {
+            applyScale(1);
+        })();
+
+        // ── Self-tests (run once on load, output to console) ──────────────
+        (function selfTest() {
+            const errors = [];
+
+            // T1: Required DOM elements exist
+            ['canvas-scroll-area', 'canvas-wrapper', 'displayCanvas', 'gridOverlay',
+             'zoom-slider', 'grid-toggle-btn'].forEach(id => {
+                if (!document.getElementById(id))
+                    errors.push('Missing element: #' + id);
+            });
+
+            // T2: Initial CSS width matches canvas.width * 1
+            const expectedW = canvas.width * 1;
+            const actualW = parseInt(canvas.style.width);
+            if (actualW !== expectedW)
+                errors.push('Initial CSS width wrong: got ' + actualW + ', expected ' + expectedW);
+
+            // T3: applyScale sets currentScale and CSS width correctly
+            applyScale(2);
+            if (currentScale !== 2)
+                errors.push('applyScale: currentScale not updated');
+            if (parseInt(canvas.style.width) !== canvas.width * 2)
+                errors.push('applyScale: CSS width not updated at 2x');
+            applyScale(1); // restore
+
+            // T4: getCanvasCoords returns {0,0} at the canvas top-left content corner
+            const rect = canvas.getBoundingClientRect();
+            const mockEvent = { clientX: rect.left + 2, clientY: rect.top + 2 };
+            const coords = getCanvasCoords(mockEvent);
+            if (coords.x !== 0 || coords.y !== 0)
+                errors.push('getCanvasCoords: expected {0,0}, got {' + coords.x + ',' + coords.y + '}');
+
+            // T5: gridCanvas starts hidden
+            if (gridCanvas.style.display !== 'none')
+                errors.push('gridCanvas should start hidden');
+
+            if (errors.length === 0) {
+                console.info('[self-test] All checks passed.');
+            } else {
+                errors.forEach(e => console.error('[self-test] FAIL:', e));
+            }
+        })();
     </script>
 </body>
 
