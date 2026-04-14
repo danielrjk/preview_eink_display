@@ -1,6 +1,6 @@
 # E-Ink Display Previewer
 
-A browser-based simulator for e-ink displays. Write GxEPD2-style code in the editor and see a live pixel-accurate preview without needing physical hardware.
+A browser-based simulator for e-ink displays. Write [GxEPD2](https://github.com/ZinggJM/GxEPD2)-compatible code in the editor and see a live pixel-accurate preview without needing physical hardware.
 
 **Live demo:** https://kielma.dev.br/eink_visualizer
 
@@ -11,8 +11,8 @@ A browser-based simulator for e-ink displays. Write GxEPD2-style code in the edi
 - C-style syntax support (`for` loops with `i++`, `i--`, `i+=n`)
 - Drawing primitives: lines, rectangles, circles, triangles
 - 200+ BDF bitmap fonts from the [u8g2](https://github.com/olikraus/u8g2) library
-- Barcode rendering: EAN-13, EAN-8, UPC-A, UPC-E
-- QR code generation
+- Barcode rendering: EAN-13, EAN-8, UPC-A, UPC-E (based on [BarcodeGFX](https://github.com/wallysalami/BarcodeGFX))
+- QR code generation (based on [QRCodeGFX](https://github.com/wallysalami/QRCodeGFX))
 - 4 display rotation modes (0°, 90°, 180°, 270°)
 
 ## Installation
@@ -101,6 +101,9 @@ qr.draw("https://example.com", x, y)
 - [bdfparser](https://github.com/tomchen/bdfparser) 2.2
 - [qrcodegen](https://github.com/nayuki/QR-Code-generator) 1.8
 - u8g2 BDF fonts by [Olikraus](https://github.com/olikraus/u8g2)
+- [GxEPD2](https://github.com/ZinggJM/GxEPD2) - the e-ink display library this tool is designed to simulate
+- [BarcodeGFX](https://github.com/wallysalami/BarcodeGFX) - barcode rendering API
+- [QRCodeGFX](https://github.com/wallysalami/QRCodeGFX) - QR code rendering API
 
 ## License
 
