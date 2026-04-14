@@ -112,7 +112,7 @@
                 <i class="bi bi-zoom-in"></i>
                 <input id="zoom-slider" type="range" min="10" max="20" step="0.1" value="10" oninput="updateZoom()">
             </div>
-            <span class="badge font-monospace ms-auto d-inline-flex align-items-center gap-1" id="coordinates" style="background:var(--bg-elevated);color:var(--text-primary)"><i class="bi bi-crosshair"></i> x: 0, y: 0</span>
+            <span class="badge font-monospace ms-auto d-inline-flex align-items-center gap-1" id="coordinates" style="background:var(--bg-elevated);color:var(--text-primary)"><i class="bi bi-cursor"></i> x: -, y: -</span>
         </div>
         <div class="position-relative d-flex justify-content-center align-items-center flex-grow-1 overflow-auto">
             <canvas id="displayCanvas" width="296" height="128"></canvas>
@@ -250,13 +250,37 @@ tela.drawLine(20, 110, 180, 110, GxEPD_BLACK);`
             canvas.dataset.scale = scale;
         }
 
-        canvas.addEventListener('click', (event) => {
+        let coordinatesLocked = false;
+
+        function getCanvasCoords(event) {
             const canvasBorderWidth = 2;
             const rect = canvas.getBoundingClientRect();
             const scale = parseFloat(canvas.dataset.scale || 1);
             const x = Math.floor((event.clientX - rect.left - canvasBorderWidth) / scale);
             const y = Math.floor((event.clientY - rect.top - canvasBorderWidth) / scale);
-            coordinatesBox.innerHTML = `<i class="bi bi-crosshair"></i> x: ${x}, y: ${y}`;
+            return { x, y };
+        }
+
+        canvas.addEventListener('mousemove', (event) => {
+            if (coordinatesLocked) return;
+            const { x, y } = getCanvasCoords(event);
+            coordinatesBox.innerHTML = `<i class="bi bi-cursor"></i> x: ${x}, y: ${y}`;
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            if (coordinatesLocked) return;
+            coordinatesBox.innerHTML = `<i class="bi bi-cursor"></i> x: -, y: -`;
+        });
+
+        canvas.addEventListener('click', (event) => {
+            if (coordinatesLocked) {
+                coordinatesLocked = false;
+                coordinatesBox.innerHTML = `<i class="bi bi-cursor"></i> x: -, y: -`;
+            } else {
+                const { x, y } = getCanvasCoords(event);
+                coordinatesLocked = true;
+                coordinatesBox.innerHTML = `<i class="bi bi-pin-angle-fill"></i> x: ${x}, y: ${y}`;
+            }
         });
 
         function rotateCanvas() {
@@ -279,7 +303,8 @@ tela.drawLine(20, 110, 180, 110, GxEPD_BLACK);`
 
             // Limpa o canvas e exibe as alterações
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            coordinatesBox.innerHTML = `<i class="bi bi-crosshair"></i> x: 0, y: 0`; // Reseta coordenadas
+            coordinatesLocked = false;
+            coordinatesBox.innerHTML = `<i class="bi bi-cursor"></i> x: -, y: -`; // Reseta coordenadas
         }
 
         document.addEventListener('keydown', (event) => {
