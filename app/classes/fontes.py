@@ -4,6 +4,55 @@ import numpy as np
 from bdfparser import Font
 
 class Fontes:
+    # Where the bundled u8g2 BDF fonts live. Resolved once so that every
+    # lookup can be checked against it.
+    FONT_DIR = os.path.realpath(
+        os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "..",
+            "src",
+            "olikraus_u8g2_master_tools-font_bdf",
+        )
+    )
+
+    @classmethod
+    def _resolve_font_path(cls, font_name):
+        """
+        Map a font name to a path inside FONT_DIR, or refuse it.
+
+        The name reaches here from submitted code, and it used to be
+        interpolated straight into a path. setFont("u8g2_font_../../../x_t")
+        therefore escaped the font directory and opened an arbitrary file. The
+        contents were never returned, so this was blind, but it was still a
+        read primitive pointed at the filesystem.
+
+        Two checks rather than one: reject anything that looks like a path,
+        then confirm the resolved location really is under FONT_DIR. The first
+        gives a clear refusal, the second is what actually holds if some
+        platform quirk slips past it.
+        """
+        if not font_name:
+            raise Exception("Fonte não implementada")
+
+        if (
+            os.sep in font_name
+            or (os.altsep and os.altsep in font_name)
+            or '/' in font_name
+            or '\\' in font_name
+            or os.pardir in font_name
+            or ':' in font_name          # Windows drive or stream separator
+            or font_name.startswith('.')
+        ):
+            raise Exception("Fonte não implementada")
+
+        caminho = os.path.realpath(
+            os.path.join(cls.FONT_DIR, f"{font_name}.bdf")
+        )
+        if os.path.dirname(caminho) != cls.FONT_DIR:
+            raise Exception("Fonte não implementada")
+
+        return caminho
+
     def __init__(self, tela):
         self.font = None
         self.cursor = (0, 0)
@@ -21,18 +70,10 @@ class Fontes:
         font_name = "_".join(font_name.split("_")[2:-1])
         #self.size = int(re.sub(r"\D", "", font_name))
 
-        # Build path to your BDF font
-        base_dir = os.path.dirname(os.path.abspath(__file__))  
-        caminho_font = os.path.join(
-            base_dir, 
-            "..",  # go up one level to /classes
-            "src", 
-            "olikraus_u8g2_master_tools-font_bdf", 
-            f"{font_name}.bdf"
-        )
+        caminho_font = self._resolve_font_path(font_name)
         try:
             font = Font(caminho_font)
-        except:
+        except Exception:
             raise Exception("Fonte não implementada")
 
         self.fbbxoff = font.headers['fbbxoff']

@@ -11,6 +11,7 @@ import traceback
 # CLASSES CUSTOMIZADAS
 from .classes import Tela, Fontes, BarCode, BarcodeType, QRCode
 from .limits import CodeTooLarge, ExecutionTimeout, check_size, time_limit
+from .sandbox import SandboxError, build_globals, compile_checked
 
 # CONSTANTES
 GxEPD_BLACK = 1
@@ -117,42 +118,58 @@ def convert_c_to_python(code):
     return code
 
 def _user_code_line(exc):
-    """Line number of the deepest frame belonging to submitted code."""
+    """
+    Line number of the innermost frame belonging to submitted code.
+
+    extract_tb returns frames outermost first, so the last match is the
+    innermost one. Taking the first would report the call site rather than
+    the statement that actually raised, which is wrong when submitted code
+    calls a helper that loops.
+    """
+    lineno = None
     for frame in traceback.extract_tb(exc.__traceback__):
         if frame.filename == '<user-code>':
-            return frame.lineno
-    return None
+            lineno = frame.lineno
+    return lineno
 
 
-def exec_code(code, pixels):
+def build_api(pixels):
+    """Assemble the drawing objects exposed to submitted code."""
     tela = Tela(pixels)
     fontes = Fontes(tela)
     barcode = BarCode(tela)
     qrcode = QRCode(tela)
+    return {
+        'tela': tela,
+        'display': tela,
+        'fontes': fontes,
+        'fonts': fontes,
+        'barcode': barcode,
+        'codigoBarras': barcode,
+        'qrcode': qrcode,
+        'qr': qrcode,
+        'pixels': pixels,
+        'GxEPD_BLACK': GxEPD_BLACK,
+        'GxEPD_WHITE': GxEPD_WHITE,
+        'EAN13': BarcodeType.EAN13,
+        'EAN8': BarcodeType.EAN8,
+        'UPCA': BarcodeType.UPCA,
+        'UPCE': BarcodeType.UPCE,
+    }
+
+
+def exec_code(code, pixels):
     try:
-        compiled_code = compile(code, '<user-code>', 'exec')
+        # Rejects imports, dunder access and anything else outside the
+        # sandbox before a single statement runs.
+        compiled_code = compile_checked(code)
         with time_limit():
-            exec(
-                compiled_code,
-                {
-                    'tela': tela,
-                    'display': tela,
-                    'fontes': fontes,
-                    'fonts': fontes,
-                    'barcode': barcode,
-                    'codigoBarras': barcode,
-                    'qrcode': qrcode,
-                    'qr': qrcode,
-                    'pixels': pixels,
-                    'GxEPD_BLACK': GxEPD_BLACK,
-                    'GxEPD_WHITE': GxEPD_WHITE,
-                    'range': range,
-                    'EAN13': BarcodeType.EAN13,
-                    'EAN8': BarcodeType.EAN8,
-                    'UPCA': BarcodeType.UPCA,
-                    'UPCE': BarcodeType.UPCE,
-                },
-            )
+            exec(compiled_code, build_globals(build_api(pixels)))
+    except SandboxError as e:
+        # No dash in this message: the caller recovers the line number by
+        # splitting on the last one.
+        linha = e.lineno if e.lineno is not None else 0
+        raise Exception(f"Nao permitido na linha {linha}: {e} -{linha}")
     except SyntaxError as e:
         raise Exception(f"Erro de sintaxe na linha {e.lineno}: {e.msg} -{e.lineno}")
     except ExecutionTimeout as e:

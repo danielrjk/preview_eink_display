@@ -13,12 +13,22 @@ Python statements. That is portable, unlike signal.SIGALRM, which does not
 exist on Windows, and unlike resource.setrlimit, which is POSIX only and
 process wide rather than per request.
 
+This depends on app.sandbox and is not a standalone control. The hook lives in
+the same interpreter as the code it is limiting, so anything that can reach
+`sys` can call sys.settrace(None) and switch it off, and `while True: pass`
+then runs unbounded. What prevents that is the sandbox: no imports, no
+__import__, and no route to a frame's globals. Do not enable this module
+without it.
+
 Known limitation: the trace hook runs between statements, so it cannot
 interrupt a single long operation inside one statement. `'a' * 10**12` is
 still one allocation the interpreter performs before the next hook fires.
-Bounding memory as well means running submitted code in a separate process
-with resource.setrlimit applied in the child; that is the next step if this
-is ever hardened further, and it is the only way to get a hard guarantee.
+
+Both of those go away with the same change. Running submitted code in a child
+process with resource.setrlimit applied there puts the deadline outside the
+interpreter being limited, where user code cannot reach it, and bounds memory
+at the same time. That is the only way to get a hard guarantee, and it is the
+next step if this is hardened further.
 """
 
 import os
