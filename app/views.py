@@ -10,6 +10,7 @@ import traceback
 
 # CLASSES CUSTOMIZADAS
 from .classes import Tela, Fontes, BarCode, BarcodeType, QRCode
+from .limits import CodeTooLarge, ExecutionTimeout, check_size, time_limit
 
 # CONSTANTES
 GxEPD_BLACK = 1
@@ -24,8 +25,15 @@ def process_code(request):
         code = data.get('code', '')
         rotacao = data.get('rotacao', '')
         width, height = (296, 128) if rotacao in [1, 3] else (128, 296)
-        pixels = np.full((height, width), GxEPD_WHITE)  
-        
+        pixels = np.full((height, width), GxEPD_WHITE)
+
+        try:
+            # Before the transpiler, so a huge payload cannot spend the
+            # worker's time in the regex passes either.
+            check_size(code)
+        except CodeTooLarge as e:
+            return JsonResponse({'error': str(e), 'line': 0}, status=400)
+
         code = convert_c_to_python(code)
 
         try:
@@ -108,6 +116,14 @@ def convert_c_to_python(code):
     
     return code
 
+def _user_code_line(exc):
+    """Line number of the deepest frame belonging to submitted code."""
+    for frame in traceback.extract_tb(exc.__traceback__):
+        if frame.filename == '<user-code>':
+            return frame.lineno
+    return None
+
+
 def exec_code(code, pixels):
     tela = Tela(pixels)
     fontes = Fontes(tela)
@@ -115,29 +131,35 @@ def exec_code(code, pixels):
     qrcode = QRCode(tela)
     try:
         compiled_code = compile(code, '<user-code>', 'exec')
-        exec(
-            compiled_code,
-            {
-                'tela': tela,
-                'display': tela,
-                'fontes': fontes,
-                'fonts': fontes,
-                'barcode': barcode,
-                'codigoBarras': barcode,
-                'qrcode': qrcode,
-                'qr': qrcode,
-                'pixels': pixels,
-                'GxEPD_BLACK': GxEPD_BLACK,
-                'GxEPD_WHITE': GxEPD_WHITE,
-                'range': range,
-                'EAN13': BarcodeType.EAN13,
-                'EAN8': BarcodeType.EAN8,
-                'UPCA': BarcodeType.UPCA,
-                'UPCE': BarcodeType.UPCE,
-            },
-        )
+        with time_limit():
+            exec(
+                compiled_code,
+                {
+                    'tela': tela,
+                    'display': tela,
+                    'fontes': fontes,
+                    'fonts': fontes,
+                    'barcode': barcode,
+                    'codigoBarras': barcode,
+                    'qrcode': qrcode,
+                    'qr': qrcode,
+                    'pixels': pixels,
+                    'GxEPD_BLACK': GxEPD_BLACK,
+                    'GxEPD_WHITE': GxEPD_WHITE,
+                    'range': range,
+                    'EAN13': BarcodeType.EAN13,
+                    'EAN8': BarcodeType.EAN8,
+                    'UPCA': BarcodeType.UPCA,
+                    'UPCE': BarcodeType.UPCE,
+                },
+            )
     except SyntaxError as e:
         raise Exception(f"Erro de sintaxe na linha {e.lineno}: {e.msg} -{e.lineno}")
+    except ExecutionTimeout as e:
+        # The trace hook fires inside the offending frame, so the traceback
+        # still points at the statement that ran long.
+        linha = _user_code_line(e) or 0
+        raise Exception(f"{e} na linha {linha} -{linha}")
     except Exception as e:
         tb = traceback.extract_tb(e.__traceback__)
         error_line = None
