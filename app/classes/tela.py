@@ -1,6 +1,8 @@
 class Tela:
     def __init__(self, pixels):
-        self.pixels = pixels
+        # Underscored so the sandbox's attribute rules keep the raw
+        # ndarray out of reach of submitted code.
+        self._pixels = pixels
 
 
     def display(*args):
@@ -32,10 +34,10 @@ class Tela:
 
     # --- Private drawing utility methods ---
     def _fill_screen(self, color):
-        self.pixels.fill(color)
+        self._pixels.fill(color)
 
     def _draw_line(self, x0, y0, x1, y1, color):
-        pixels = self.pixels
+        pixels = self._pixels
         steep = abs(y1 - y0) > abs(x1 - x0)
         if steep:
             x0, y0 = y0, x0
@@ -99,7 +101,7 @@ class Tela:
             px = x
 
     def _draw_circle(self, x0, y0, r, color):
-        pixels = self.pixels
+        pixels = self._pixels
         f = 1 - r
         ddF_x = 1
         ddF_y = -2 * r
