@@ -144,6 +144,11 @@
 
 
     <script>
+        // Django requires this on every unsafe request. Injected by the
+        // template rather than read from the cookie, so the CSRF cookie can
+        // stay HttpOnly.
+        const CSRF_TOKEN = "{{ csrf_token }}";
+
         const editor = CodeMirror(document.getElementById('editor'), {
             mode: "text/x-arduino",
             lineNumbers: true,
@@ -227,6 +232,7 @@ tela.drawLine(20, 110, 180, 110, GxEPD_BLACK);`
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
+                        'X-CSRFToken': CSRF_TOKEN,
                     },
                     body: JSON.stringify({ "code": code, "rotacao": rotationState }),
                 });
