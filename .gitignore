@@ -27,6 +27,10 @@ media/
 app/migrations/*.pyc
 app/migrations/*.py
 
+# Segredos gerados localmente
+.secret_key
+.env
+
 # Outras Exclusões
 *.tar.gz
 *.zip

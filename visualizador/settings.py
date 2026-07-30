@@ -1,5 +1,8 @@
 import os
+import stat
 from pathlib import Path
+
+from django.core.management.utils import get_random_secret_key
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -10,7 +13,66 @@ def _env_list(name, default):
     return [item.strip() for item in raw.split(',') if item.strip()] or default
 
 
-SECRET_KEY = 'uk$bp#35(%--2ozl%3^=&d!!hzoy5^!b364&3y&%p76)p5!mh0'
+def _load_secret_key():
+    """
+    Resolve SECRET_KEY without ever committing one to the repository.
+
+    Order of preference:
+      1. DJANGO_SECRET_KEY environment variable (use this in production).
+      2. A generated key cached in BASE_DIR/.secret_key (gitignored), so that
+         `git clone && python manage.py runserver` works with no setup and the
+         key stays stable across restarts and across worker processes.
+      3. An ephemeral in-memory key, if the cache file cannot be written.
+
+    Step 2 matters for correctness as much as for secrecy: workers must agree
+    on the key, or a CSRF token issued by one fails validation on another.
+
+    Which is why the write is exclusive rather than a plain write_text. Several
+    workers starting at once with no cache file present would each generate a
+    different key and race; the file would hold whichever wrote last, but every
+    process would keep returning the key it generated itself, and they would
+    disagree until all of them restarted. O_CREAT | O_EXCL means exactly one
+    process creates the file, and the losers read back the winner's key instead
+    of using their own.
+    """
+    key = os.environ.get('DJANGO_SECRET_KEY')
+    if key:
+        return key
+
+    key_file = BASE_DIR / '.secret_key'
+
+    def read_cached():
+        try:
+            cached = key_file.read_text(encoding='utf-8').strip()
+        except OSError:
+            return None
+        return cached or None
+
+    cached = read_cached()
+    if cached:
+        return cached
+
+    key = get_random_secret_key()
+    try:
+        # Exclusive create: fails if another process got there first.
+        fd = os.open(key_file, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    except FileExistsError:
+        # Lost the race. The winner's key is the one everyone must use.
+        return read_cached() or key
+    except OSError:
+        # Read-only filesystem: fall back to an ephemeral key. Single-worker
+        # deployments still work; multi-worker ones must set the env var.
+        return key
+
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as handle:
+            handle.write(key)
+    except OSError:
+        return key
+    return key
+
+
+SECRET_KEY = _load_secret_key()
 DEBUG = False
 
 # Was ['*'], which accepts any Host header. Override with a comma-separated
