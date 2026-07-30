@@ -1,8 +1,52 @@
+import os
+import stat
 from pathlib import Path
+
+from django.core.management.utils import get_random_secret_key
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = 'uk$bp#35(%--2ozl%3^=&d!!hzoy5^!b364&3y&%p76)p5!mh0'
+
+def _load_secret_key():
+    """
+    Resolve SECRET_KEY without ever committing one to the repository.
+
+    Order of preference:
+      1. DJANGO_SECRET_KEY environment variable (use this in production).
+      2. A generated key cached in BASE_DIR/.secret_key (gitignored), so that
+         `git clone && python manage.py runserver` works with no setup and the
+         key stays stable across restarts and across worker processes.
+      3. An ephemeral in-memory key, if the cache file cannot be written.
+
+    Step 2 matters for correctness as much as for secrecy: a per-process random
+    key would make CSRF tokens issued by one worker fail validation on another.
+    """
+    key = os.environ.get('DJANGO_SECRET_KEY')
+    if key:
+        return key
+
+    key_file = BASE_DIR / '.secret_key'
+    try:
+        if key_file.exists():
+            cached = key_file.read_text(encoding='utf-8').strip()
+            if cached:
+                return cached
+    except OSError:
+        pass
+
+    key = get_random_secret_key()
+    try:
+        key_file.write_text(key, encoding='utf-8')
+        # Owner-only where the platform honours it (no-op on Windows).
+        os.chmod(key_file, stat.S_IRUSR | stat.S_IWUSR)
+    except OSError:
+        # Read-only filesystem: fall back to an ephemeral key. Single-worker
+        # deployments still work; multi-worker ones must set the env var.
+        pass
+    return key
+
+
+SECRET_KEY = _load_secret_key()
 DEBUG = False
 
 ALLOWED_HOSTS = ['*']
