@@ -100,6 +100,61 @@ _NODE_EXPLANATIONS = {
 }
 
 
+# --- Attribute allowlist ----------------------------------------------------
+
+# The rules above are a denylist, and a denylist only stops what someone
+# thought of. Two escapes got through that way: a generator's gi_frame, and
+# the framebuffer's ndarray.tofile, which writes attacker-chosen bytes to any
+# path the server account can reach. Both were reachable because their names
+# were not on a list.
+#
+# So attribute access is an allowlist. Anything not named here is refused,
+# which means a new method on a drawing class becomes available automatically
+# while an unforeseen method on some *other* object does not.
+
+# Safe methods on the built-in types submitted code creates for itself.
+_SAFE_VALUE_ATTRS = frozenset({
+    # str
+    'upper', 'lower', 'strip', 'lstrip', 'rstrip', 'split', 'rsplit', 'join',
+    'replace', 'startswith', 'endswith', 'zfill', 'rjust', 'ljust', 'center',
+    'find', 'rfind', 'title', 'capitalize', 'swapcase', 'isdigit', 'isalpha',
+    'isalnum', 'isspace', 'isupper', 'islower', 'partition', 'rpartition',
+    'removeprefix', 'removesuffix', 'splitlines',
+    # list / set / dict
+    'append', 'extend', 'insert', 'remove', 'pop', 'clear', 'index', 'count',
+    'sort', 'reverse', 'copy', 'keys', 'values', 'items', 'get', 'update',
+    'setdefault', 'add', 'discard', 'union', 'intersection', 'difference',
+    'issubset', 'issuperset',
+    # numbers, and enum members such as EAN13.name
+    'bit_length', 'is_integer', 'real', 'imag', 'conjugate', 'numerator',
+    'denominator', 'name', 'value',
+})
+
+_ALLOWED_ATTRIBUTES = None
+
+
+def _allowed_attributes():
+    """
+    Attribute names submitted code may touch, built once on first use.
+
+    The drawing half is read from the classes themselves so the allowlist
+    cannot drift out of step with the API. Class level only: instance
+    attributes such as Tela._pixels and Fontes.font are absent from dir(cls)
+    and therefore stay unreachable.
+    """
+    global _ALLOWED_ATTRIBUTES
+    if _ALLOWED_ATTRIBUTES is None:
+        # Imported here rather than at module scope: views imports both this
+        # module and app.classes, and this keeps the import order irrelevant.
+        from .classes import BarCode, BarcodeType, Fontes, QRCode, Tela
+
+        api = set()
+        for cls in (Tela, Fontes, BarCode, QRCode, BarcodeType):
+            api.update(n for n in dir(cls) if not n.startswith('_'))
+        _ALLOWED_ATTRIBUTES = frozenset(_SAFE_VALUE_ATTRS | api)
+    return _ALLOWED_ATTRIBUTES
+
+
 class SandboxError(Exception):
     """Raised when submitted code uses something outside the sandbox."""
 
@@ -146,6 +201,11 @@ def _check_attribute(node):
             getattr(node, 'lineno', None),
         )
     if attr.startswith(_BLOCKED_ATTR_PREFIXES):
+        raise SandboxError(
+            f'attribute "{attr}" is not available here',
+            getattr(node, 'lineno', None),
+        )
+    if attr not in _allowed_attributes():
         raise SandboxError(
             f'attribute "{attr}" is not available here',
             getattr(node, 'lineno', None),

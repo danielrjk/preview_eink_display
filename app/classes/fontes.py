@@ -99,7 +99,7 @@ class Fontes:
 
     def print(self, text):
         font = self.font
-        pixels = self.tela.pixels
+        pixels = self.tela._pixels
         x, y = self.cursor
         x, y = y, x
         x -= self.baseline_offset
@@ -130,11 +130,11 @@ class Fontes:
                     for j in range(col_start, col_start + bbx):
                         if 0 <= row_start + i < len(pixels) and 0 <= j < len(pixels[0]):
                             pixels[row_start + i][j] = 1
-        self.tela.pixels = pixels
+        self.tela._pixels = pixels
 
     def drawGlyph(self, x, y, encoding):
         font = self.font
-        pixels = self.tela.pixels
+        pixels = self.tela._pixels
         x, y = int(y), int(x)
         x -= self.baseline_offset
         y += self.fbbxoff
@@ -159,4 +159,4 @@ class Fontes:
                 for j, celula in enumerate(linha):
                     if 0 <= x + i < len(pixels) and 0 <= y + j < len(pixels[0]):
                         pixels[x + i][y + j] = any([celula, pixels[x + i][y + j]])
-        self.tela.pixels = pixels
+        self.tela._pixels = pixels

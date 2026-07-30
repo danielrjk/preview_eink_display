@@ -124,7 +124,9 @@ def build_api(pixels):
         'codigoBarras': barcode,
         'qrcode': qrcode,
         'qr': qrcode,
-        'pixels': pixels,
+        # 'pixels' is deliberately not exposed. It was the raw ndarray,
+        # which carries public methods that write to the filesystem
+        # (tofile, dump). Submitted code gets the drawing objects only.
         'GxEPD_BLACK': GxEPD_BLACK,
         'GxEPD_WHITE': GxEPD_WHITE,
         'EAN13': BarcodeType.EAN13,
