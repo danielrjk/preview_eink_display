@@ -10,6 +10,7 @@ import traceback
 
 # CLASSES CUSTOMIZADAS
 from .classes import Tela, Fontes, BarCode, BarcodeType, QRCode
+from .limits import CodeTooLarge, ExecutionTimeout, check_size, time_limit
 from .sandbox import SandboxError, build_globals, compile_checked
 
 # CONSTANTES
@@ -25,8 +26,15 @@ def process_code(request):
         code = data.get('code', '')
         rotacao = data.get('rotacao', '')
         width, height = (296, 128) if rotacao in [1, 3] else (128, 296)
-        pixels = np.full((height, width), GxEPD_WHITE)  
-        
+        pixels = np.full((height, width), GxEPD_WHITE)
+
+        try:
+            # Before the transpiler, so a huge payload cannot spend the
+            # worker's time in the regex passes either.
+            check_size(code)
+        except CodeTooLarge as e:
+            return JsonResponse({'error': str(e), 'line': 0}, status=400)
+
         code = convert_c_to_python(code)
 
         try:
@@ -109,6 +117,22 @@ def convert_c_to_python(code):
     
     return code
 
+def _user_code_line(exc):
+    """
+    Line number of the innermost frame belonging to submitted code.
+
+    extract_tb returns frames outermost first, so the last match is the
+    innermost one. Taking the first would report the call site rather than
+    the statement that actually raised, which is wrong when submitted code
+    calls a helper that loops.
+    """
+    lineno = None
+    for frame in traceback.extract_tb(exc.__traceback__):
+        if frame.filename == '<user-code>':
+            lineno = frame.lineno
+    return lineno
+
+
 def build_api(pixels):
     """Assemble the drawing objects exposed to submitted code."""
     tela = Tela(pixels)
@@ -139,7 +163,8 @@ def exec_code(code, pixels):
         # Rejects imports, dunder access and anything else outside the
         # sandbox before a single statement runs.
         compiled_code = compile_checked(code)
-        exec(compiled_code, build_globals(build_api(pixels)))
+        with time_limit():
+            exec(compiled_code, build_globals(build_api(pixels)))
     except SandboxError as e:
         # No dash in this message: the caller recovers the line number by
         # splitting on the last one.
@@ -147,6 +172,11 @@ def exec_code(code, pixels):
         raise Exception(f"Nao permitido na linha {linha}: {e} -{linha}")
     except SyntaxError as e:
         raise Exception(f"Erro de sintaxe na linha {e.lineno}: {e.msg} -{e.lineno}")
+    except ExecutionTimeout as e:
+        # The trace hook fires inside the offending frame, so the traceback
+        # still points at the statement that ran long.
+        linha = _user_code_line(e) or 0
+        raise Exception(f"{e} na linha {linha} -{linha}")
     except Exception as e:
         tb = traceback.extract_tb(e.__traceback__)
         error_line = None
